@@ -11,13 +11,13 @@ interface CameraUploadProps {
 
 export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
   const [stream, setStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     return () => {
-      // Cleanup: stop the stream when component unmounts
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
@@ -25,6 +25,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   }, [stream]);
 
   const startCamera = async () => {
+    setIsCameraLoading(true);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
@@ -34,18 +35,32 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
         } 
       });
 
+      // Verify we got video tracks
+      if (mediaStream.getVideoTracks().length === 0) {
+        throw new Error("No video track available");
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = resolve;
+          }
+        });
+
         setStream(mediaStream);
         setIsCapturing(true);
       }
     } catch (error) {
+      console.error("Camera error:", error);
       toast({
         title: "Camera Error",
-        description: "Failed to access camera. Please check permissions.",
+        description: "Failed to access camera. Please check permissions or try a different device.",
         variant: "destructive"
       });
-      console.error("Camera error:", error);
+    } finally {
+      setIsCameraLoading(false);
     }
   };
 
@@ -66,7 +81,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
 
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        const base64Image = canvas.toDataURL('image/jpeg', 0.8); // Reduced quality for smaller size
+        const base64Image = canvas.toDataURL('image/jpeg', 0.8);
         stopCamera();
         onImageCapture(base64Image);
       }
@@ -76,7 +91,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      if (file.size > 50 * 1024 * 1024) {
         toast({
           title: "File too large",
           description: "Please select an image smaller than 50MB",
@@ -98,12 +113,15 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
       {isCapturing ? (
         <div className="space-y-4">
           <div className="relative aspect-video w-full max-w-xl mx-auto overflow-hidden rounded-lg border bg-muted">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            {stream && (
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute inset-0 h-full w-full object-contain"
+              />
+            )}
           </div>
           <div className="flex gap-2">
             <Button 
@@ -132,10 +150,14 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
           <Button 
             onClick={startCamera}
             className="w-full"
-            disabled={isLoading}
+            disabled={isLoading || isCameraLoading}
           >
-            <Camera className="h-4 w-4 mr-2" />
-            Open Camera
+            {isCameraLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Camera className="h-4 w-4 mr-2" />
+            )}
+            {isCameraLoading ? "Starting Camera..." : "Open Camera"}
           </Button>
           <div className="relative">
             <Input
