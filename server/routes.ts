@@ -18,7 +18,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           {
             role: "user",
             content: [
-              { type: "text", text: "Count the number of chickens in this image. Respond with ONLY the number, no additional text." },
+              { 
+                type: "text", 
+                text: "Analyze this image and count the number of chickens. Respond with a JSON object containing a 'count' field with the number. For example: {'count': 5}" 
+              },
               {
                 type: "image_url",
                 image_url: { url: image }
