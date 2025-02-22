@@ -4,25 +4,19 @@ import { get, set } from 'idb-keyval';
 import type { Count } from '@shared/schema';
 import { apiRequest } from './queryClient';
 
-interface PendingUpload {
-  id: string;
-  image: string;
-  timestamp: Date;
-  retryCount: number;
-}
-
-interface CountState {
+// Unified state interface
+interface AppState {
+  // Count related state
   counts: Count[];
   pendingUploads: PendingUpload[];
   isOnline: boolean;
   isSyncing: boolean;
-}
 
-interface CountStore extends CountState {
-  counts: Count[];
-  pendingUploads: PendingUpload[];
-  isOnline: boolean;
-  isSyncing: boolean;
+  // Tutorial state
+  showTutorial: boolean;
+  tutorialLoading: boolean;
+
+  // Actions
   addCount: (count: Count) => void;
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
@@ -32,16 +26,68 @@ interface CountStore extends CountState {
   importCounts: (counts: Count[]) => void;
   updateCount: (id: string | number, updates: Partial<Count>) => void;
   deleteCounts: (ids: (string | number)[]) => void;
+
+  // Tutorial actions
+  completeTutorial: () => Promise<void>;
+  resetTutorial: () => Promise<void>;
+  initializeTutorial: () => Promise<void>;
 }
 
-export const useCountStore = create<CountStore>()(
+interface PendingUpload {
+  id: string;
+  image: string;
+  timestamp: Date;
+  retryCount: number;
+}
+
+export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
+      // Count state
       counts: [],
       pendingUploads: [],
-      isOnline: true, // Start optimistically
+      isOnline: true,
       isSyncing: false,
 
+      // Tutorial state
+      showTutorial: false,
+      tutorialLoading: true,
+
+      // Initialize tutorial state
+      initializeTutorial: async () => {
+        try {
+          const hasSeenTutorial = await get<boolean>('chicken-counter-tutorial-shown');
+          set({ 
+            showTutorial: !hasSeenTutorial,
+            tutorialLoading: false 
+          });
+        } catch (error) {
+          console.error('Failed to initialize tutorial state:', error);
+          set({ showTutorial: true, tutorialLoading: false });
+        }
+      },
+
+      // Complete tutorial
+      completeTutorial: async () => {
+        try {
+          await set('chicken-counter-tutorial-shown', true);
+          set({ showTutorial: false });
+        } catch (error) {
+          console.error('Failed to save tutorial completion:', error);
+        }
+      },
+
+      // Reset tutorial
+      resetTutorial: async () => {
+        try {
+          await set('chicken-counter-tutorial-shown', false);
+          set({ showTutorial: true });
+        } catch (error) {
+          console.error('Failed to reset tutorial:', error);
+        }
+      },
+
+      // Count actions
       addCount: (count) => {
         set((state) => ({
           counts: [count, ...state.counts]
@@ -88,14 +134,15 @@ export const useCountStore = create<CountStore>()(
           const results = await Promise.all(
             state.pendingUploads.map(async (upload) => {
               try {
-                const response = await apiRequest('POST', '/api/analyze', {
-                  image: upload.image
-                });
+                const response = await apiRequest('POST', '/api/analyze', { image: upload.image });
                 const data = await response.json();
 
-                state.addCount(data.count);
-                state.removePendingUpload(upload.id);
-                return { success: true, count: data.count };
+                if (data.count) {
+                  state.addCount(data.count);
+                  state.removePendingUpload(upload.id);
+                  return { success: true, count: data.count };
+                }
+                return { success: false, error: new Error('No count data received') };
               } catch (error) {
                 set((state) => ({
                   pendingUploads: state.pendingUploads.map(pending =>
@@ -110,11 +157,18 @@ export const useCountStore = create<CountStore>()(
           );
 
           const successCount = results.filter(r => r.success).length;
-          const totalChickens = results.reduce((sum, r) => r.success ? sum + r.count.count : sum, 0);
+          const totalChickens = results.reduce((sum, r) => {
+            if (r.success && r.count) {
+              return sum + r.count.count;
+            }
+            return sum;
+          }, 0);
 
           if (successCount > 0) {
             console.log(`Synced ${successCount} images, found ${totalChickens} chickens`);
           }
+        } catch (error) {
+          console.error('Error during sync:', error);
         } finally {
           set({ isSyncing: false });
         }
@@ -122,7 +176,6 @@ export const useCountStore = create<CountStore>()(
 
       setOnline: async (status) => {
         if (status) {
-          // Verify actual API connectivity
           try {
             const response = await fetch('/api/health');
             const isConnected = response.ok;
@@ -159,7 +212,9 @@ export const useCountStore = create<CountStore>()(
       storage: {
         getItem: async (name) => {
           try {
-            return await get(name);
+            const value = await get(name);
+            console.log('Retrieved from storage:', { name, hasValue: value !== undefined });
+            return value;
           } catch (error) {
             console.error('Failed to load from IndexedDB:', error);
             return null;
@@ -168,6 +223,7 @@ export const useCountStore = create<CountStore>()(
         setItem: async (name, value) => {
           try {
             await set(name, value);
+            console.log('Saved to storage:', { name });
           } catch (error) {
             console.error('Failed to save to IndexedDB:', error);
           }
@@ -175,6 +231,7 @@ export const useCountStore = create<CountStore>()(
         removeItem: async (name) => {
           try {
             await set(name, undefined);
+            console.log('Removed from storage:', { name });
           } catch (error) {
             console.error('Failed to remove from IndexedDB:', error);
           }
@@ -184,12 +241,16 @@ export const useCountStore = create<CountStore>()(
   )
 );
 
-// Set up online/offline listeners with actual connectivity check
+// Initialize app state
 if (typeof window !== 'undefined') {
-  const checkConnectivity = () => useCountStore.getState().setOnline(navigator.onLine);
+  // Set up online/offline listeners
+  const checkConnectivity = () => useAppStore.getState().setOnline(navigator.onLine);
   window.addEventListener('online', checkConnectivity);
   window.addEventListener('offline', checkConnectivity);
 
   // Initial connectivity check
   checkConnectivity();
+
+  // Initialize tutorial state
+  useAppStore.getState().initializeTutorial();
 }

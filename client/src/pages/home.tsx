@@ -8,8 +8,7 @@ import { TutorialModal } from "@/components/tutorial-modal";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useCountStore } from "@/lib/store";
-import { useTutorial } from "@/hooks/use-tutorial";
+import { useAppStore } from "@/lib/store";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
 
@@ -29,31 +28,26 @@ export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { isOnline, addCount, queueForUpload } = useCountStore();
-  const { showTutorial, completeTutorial, isLoading: tutorialLoading } = useTutorial();
+  const { 
+    isOnline, 
+    showTutorial,
+    tutorialLoading,
+    addCount,
+    completeTutorial
+  } = useAppStore();
+
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
 
-  // Add debugging logs
-  console.log('Auth state:', { user, isOnline });
-  console.log('Tutorial state:', { showTutorial, tutorialLoading });
-
-  const { data: countsData, isError: countsError } = useQuery<CountsResponse>({
+  // Fetch counts only if user is authenticated
+  const { data: countsData } = useQuery<CountsResponse>({
     queryKey: ["/api/counts"],
     queryFn: async () => {
-      console.log('Fetching counts...');
       const res = await apiRequest("GET", "/api/counts");
-      const data = await res.json();
-      console.log('Counts data:', data);
-      return data;
+      return res.json();
     },
     enabled: !!user // Only fetch if user is logged in
   });
-
-  // Log any errors
-  if (countsError) {
-    console.error('Error fetching counts:', countsError);
-  }
 
   const analyzeMutation = useMutation<
     Array<AnalyzeResponse>,
@@ -92,7 +86,7 @@ export default function Home() {
 
         // Show achievement notifications
         data.forEach(result => {
-          if (result.newAchievements && result.newAchievements.length > 0) {
+          if (result.newAchievements?.length) {
             result.newAchievements.forEach(achievement => {
               toast({
                 title: "Achievement Unlocked! 🏆",
@@ -114,7 +108,6 @@ export default function Home() {
       setTotalImages(0);
     },
     onError: (error) => {
-      console.error('Mutation error:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "An unknown error occurred",
@@ -129,13 +122,14 @@ export default function Home() {
     analyzeMutation.mutate(base64Images);
   };
 
+  // Early return while tutorial state is loading
   if (tutorialLoading) {
-    console.log('Tutorial is loading...');
     return null;
   }
 
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
+      {/* Always render tutorial modal when showTutorial is true */}
       {showTutorial && (
         <TutorialModal
           isOpen={showTutorial}
@@ -168,8 +162,10 @@ export default function Home() {
         </CardContent>
       </Card>
 
+      {/* Show PendingUploads only for authenticated users */}
       {user && <PendingUploads />}
 
+      {/* Always show history card but content depends on auth state */}
       <Card>
         <CardHeader>
           <CardTitle>History</CardTitle>

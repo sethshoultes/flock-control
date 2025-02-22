@@ -1,11 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useCountStore } from "@/lib/store";
+import { useAppStore } from "@/lib/store";
 import { CloudOff, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 export function PendingUploads() {
-  const { pendingUploads, isSyncing } = useCountStore();
+  const { pendingUploads, isSyncing } = useAppStore();
 
   if (pendingUploads.length === 0) {
     return null;

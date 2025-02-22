@@ -1,11 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Wifi, WifiOff, BookOpen } from "lucide-react";
-import { useCountStore } from "@/lib/store";
-import { useTutorial } from "@/hooks/use-tutorial";
+import { useAppStore } from "@/lib/store";
 
 export function DevTools() {
-  const { isOnline, setOnline } = useCountStore();
-  const { resetTutorial } = useTutorial();
+  const { isOnline, setOnline, resetTutorial } = useAppStore();
 
   // Only show in development
   if (import.meta.env.PROD) {
