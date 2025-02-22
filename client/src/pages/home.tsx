@@ -12,7 +12,6 @@ import { useCountStore } from "@/lib/store";
 import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
-import { AchievementsDisplay } from "@/components/achievements-display";
 
 export default function Home() {
   const { toast } = useToast();
@@ -101,12 +100,16 @@ export default function Home() {
         queryClient.invalidateQueries({ queryKey: ["/api/achievements"] });
 
         // Show achievement notifications if any were earned
-        if (data.newAchievements?.length > 0) {
-          data.newAchievements.forEach(achievement => {
-            toast({
-              title: "Achievement Unlocked! 🏆",
-              description: `${achievement.name} - ${achievement.description}`,
-            });
+        if (data.some(result => 'newAchievements' in result && result.newAchievements?.length > 0)) {
+          data.forEach(result => {
+            if (result.newAchievements) {
+              result.newAchievements.forEach(achievement => {
+                toast({
+                  title: "Achievement Unlocked! 🏆",
+                  description: `${achievement.name} - ${achievement.description}`,
+                });
+              });
+            }
           });
         }
       }
@@ -185,9 +188,6 @@ export default function Home() {
           )}
         </CardContent>
       </Card>
-
-      {/* Only show achievements for logged-in users */}
-      {user && <AchievementsDisplay />}
 
       {/* Only show pending uploads for logged-in users */}
       {user && <PendingUploads />}
