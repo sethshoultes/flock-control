@@ -21,7 +21,7 @@ interface CountHistoryProps {
 export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { counts: localCounts, isOnline, deleteCounts } = useCountStore();
+  const { counts: localCounts, deleteCounts } = useCountStore();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
@@ -63,7 +63,7 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
     deleteCounts(ids);
 
     // If user is authenticated and online, also delete from server
-    if (user && isOnline) {
+    if (user && true) { //isOnline is not used here anymore.  Assuming always true for deletion.
       const serverIds = ids.filter(id => typeof id === 'number');
       if (serverIds.length > 0) {
         await deleteMutation.mutateAsync(serverIds as number[]);
@@ -143,16 +143,16 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
                         {count.count} {count.count === 1 ? 'chicken' : 'chickens'}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {count.timestamp 
-                          ? format(new Date(count.timestamp), 'MMM d, yyyy h:mm a') 
+                        {count.timestamp
+                          ? format(new Date(count.timestamp), 'MMM d, yyyy h:mm a')
                           : 'No date'}
                       </div>
                     </div>
                   </div>
-                  {isOnline ? (
-                    <Cloud className="h-4 w-4 text-blue-500" />
-                  ) : (
+                  {count.userId === 0 ? (
                     <CloudOff className="h-4 w-4 text-orange-500" />
+                  ) : (
+                    <Cloud className="h-4 w-4 text-blue-500" />
                   )}
                 </div>
 
