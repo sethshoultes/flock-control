@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Wifi, WifiOff, BookOpen } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { DatabaseDebug } from "./database-debug";
 
 export function DevTools() {
   const { isOnline, setOnline, resetTutorial } = useAppStore();
@@ -15,6 +16,8 @@ export function DevTools() {
 
   return (
     <div className="fixed bottom-4 right-4 flex gap-2">
+      <DatabaseDebug />
+
       <Button
         variant="outline"
         size="sm"
