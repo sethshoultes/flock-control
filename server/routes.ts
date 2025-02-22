@@ -11,10 +11,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes and middleware
   setupAuth(app);
 
-  app.post("/api/analyze", requireAuth, async (req, res) => {
+  app.post("/api/analyze", async (req, res) => {
     try {
       const { image } = req.body;
-      const userId = req.session.userId!;
+      const userId = req.session.userId || 0; // Use 0 for guest mode
+      const isGuest = !req.session.userId;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -87,12 +88,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result.labels.push(`health:${result.healthStatus}`);
       }
 
+      // Add guest mode label if applicable
+      if (isGuest) {
+        result.labels.push("guest-mode");
+      }
+
       const countRecord = await storage.addCount(userId, {
         count: result.count,
         imageUrl: image,
         breed: result.breed,
         confidence: result.confidence,
-        labels: result.labels
+        labels: result.labels,
+        userId: userId
       });
 
       res.json({ count: countRecord });
