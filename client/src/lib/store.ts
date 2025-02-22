@@ -26,6 +26,7 @@ interface CountStore extends CountState {
   removePendingUpload: (id: string) => void;
   clearCounts: () => void;
   importCounts: (counts: Count[]) => void;
+  updateCount: (id: string, updates: Partial<Count>) => void;
 }
 
 export const useCountStore = create<CountStore>()(
@@ -39,6 +40,14 @@ export const useCountStore = create<CountStore>()(
       addCount: (count) => {
         set((state) => ({
           counts: [count, ...state.counts]
+        }));
+      },
+
+      updateCount: (id: string, updates: Partial<Count>) => {
+        set((state) => ({
+          counts: state.counts.map(count => 
+            count.id === id ? { ...count, ...updates } : count
+          )
         }));
       },
 
@@ -125,20 +134,26 @@ export const useCountStore = create<CountStore>()(
       name: 'chicken-counter-storage',
       storage: {
         getItem: async (name) => {
-          const value = await get(name);
-          return value ?? null;
+          try {
+            return await get(name);
+          } catch (error) {
+            console.error('Failed to load from IndexedDB:', error);
+            return null;
+          }
         },
         setItem: async (name, value) => {
-          const state = value as CountState;
-          await set(name, {
-            counts: state.counts,
-            pendingUploads: state.pendingUploads,
-            isOnline: state.isOnline,
-            isSyncing: state.isSyncing,
-          });
+          try {
+            await set(name, value);
+          } catch (error) {
+            console.error('Failed to save to IndexedDB:', error);
+          }
         },
         removeItem: async (name) => {
-          await set(name, undefined);
+          try {
+            await set(name, undefined);
+          } catch (error) {
+            console.error('Failed to remove from IndexedDB:', error);
+          }
         },
       },
     }

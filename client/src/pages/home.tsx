@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCountStore } from "@/lib/store";
 import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
+import type { Count } from "@shared/schema";
 
 export default function Home() {
   const { toast } = useToast();
@@ -24,9 +25,12 @@ export default function Home() {
   // Only fetch cloud data if user is authenticated
   const { data: countsData } = useQuery({
     queryKey: ["/api/counts"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/counts");
+      return res.json();
+    },
     enabled: !!user && isOnline,
     onSuccess: (data) => {
-      // Import cloud data into local store
       if (data?.counts) {
         importCounts(data.counts);
       }
@@ -35,18 +39,32 @@ export default function Home() {
 
   const analyzeMutation = useMutation({
     mutationFn: async (images: string[]) => {
-      if (!isOnline || !user) {
-        images.forEach(image => queueForUpload(image));
-        throw new Error(
-          !user 
-            ? "Guest mode: Images are stored locally" 
-            : "You're offline. Images will be analyzed when you're back online.",
-        );
-      }
-
       setTotalImages(images.length);
       setProcessingCount(0);
 
+      // If not logged in, just store the images locally
+      if (!user) {
+        return images.map((image) => ({
+          count: {
+            id: crypto.randomUUID(),
+            count: 0, // User will need to count manually in guest mode
+            imageUrl: image,
+            timestamp: new Date(),
+            userId: 0, // Guest user
+            breed: null,
+            confidence: null,
+            labels: ["guest-mode"]
+          } as Count
+        }));
+      }
+
+      // If logged in but offline, queue for later processing
+      if (!isOnline) {
+        images.forEach(image => queueForUpload(image));
+        throw new Error("You're offline. Images will be analyzed when you're back online.");
+      }
+
+      // Online & logged in - process with AI
       const results = await Promise.all(
         images.map(async (image, index) => {
           const response = await apiRequest("POST", "/api/analyze", { image });
@@ -64,10 +82,18 @@ export default function Home() {
       data.forEach(result => addCount(result.count));
 
       const totalChickens = data.reduce((sum, result) => sum + result.count.count, 0);
-      toast({
-        title: "Success",
-        description: `Analyzed ${data.length} images. Found ${totalChickens} chickens in total.`,
-      });
+
+      if (user) {
+        toast({
+          title: "Success",
+          description: `Analyzed ${data.length} images. Found ${totalChickens} chickens in total.`,
+        });
+      } else {
+        toast({
+          title: "Guest Mode",
+          description: `Added ${data.length} images to your local storage.`,
+        });
+      }
 
       setProcessingCount(0);
       setTotalImages(0);
@@ -102,7 +128,7 @@ export default function Home() {
       <Card>
         <CardHeader>
           <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Flock Counter {!isOnline && "(Offline)"}
+            Flock Counter {!user ? "(Guest Mode)" : (!isOnline ? "(Offline)" : "")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -124,7 +150,8 @@ export default function Home() {
         </CardContent>
       </Card>
 
-      <PendingUploads />
+      {/* Only show pending uploads for logged-in users */}
+      {user && <PendingUploads />}
 
       <Card>
         <CardHeader>
