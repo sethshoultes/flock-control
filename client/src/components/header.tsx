@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useAuthMutations } from "@/hooks/use-auth";
-import { LogIn, LogOut, User, Trophy, ChevronDown } from "lucide-react";
+import { LogIn, LogOut, User, Trophy, ChevronDown, Wrench } from "lucide-react";
 import { useLocation } from "wouter";
 import {
   DropdownMenu,
@@ -40,6 +40,10 @@ export function Header() {
                 <DropdownMenuItem onClick={() => setLocation("/achievements")} className="cursor-pointer">
                   <Trophy className="h-4 w-4 mr-2" />
                   Achievements
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLocation("/dev-tools")} className="cursor-pointer">
+                  <Wrench className="h-4 w-4 mr-2" />
+                  Dev Tools
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
