@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Camera, Upload, Loader2 } from "lucide-react";
+import { Camera, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CameraUploadProps {
@@ -24,35 +24,66 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   }, [stream]);
 
   const startCamera = async () => {
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Camera API is not supported in this browser");
-      }
+    console.log('Starting camera initialization...');
 
+    if (!navigator.mediaDevices?.getUserMedia) {
+      console.error('getUserMedia not supported');
+      toast({
+        title: "Browser Error",
+        description: "Camera API is not supported in this browser",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log('Requesting camera access...');
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment'
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
       });
+      console.log('Camera access granted');
 
-      if (!videoRef.current) return;
+      if (!videoRef.current) {
+        console.error('Video element not found');
+        return;
+      }
 
       videoRef.current.srcObject = mediaStream;
+      console.log('Set video source');
 
-      // Wait for the video to be properly initialized
+      // Create a promise that resolves when the video can play
       await new Promise<void>((resolve, reject) => {
-        if (!videoRef.current) return reject();
+        if (!videoRef.current) return reject('No video element');
 
         videoRef.current.onloadedmetadata = () => {
-          if (!videoRef.current) return reject();
-          videoRef.current.play()
-            .then(() => resolve())
-            .catch(reject);
+          console.log('Video metadata loaded');
+          if (!videoRef.current) return reject('No video element after metadata load');
+
+          videoRef.current.onloadeddata = () => {
+            console.log('Video data loaded, starting playback');
+            videoRef.current?.play()
+              .then(() => {
+                console.log('Video playback started');
+                resolve();
+              })
+              .catch(error => {
+                console.error('Video playback failed:', error);
+                reject(error);
+              });
+          };
         };
+
+        // Add timeout
+        setTimeout(() => reject('Video initialization timed out'), 10000);
       });
 
       setStream(mediaStream);
       setIsCapturing(true);
+      console.log('Camera setup complete');
 
     } catch (error) {
       console.error("Camera error:", error);
@@ -67,48 +98,43 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   const stopCamera = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
-      setStream(null);
     }
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setStream(null);
     setIsCapturing(false);
   };
 
   const captureImage = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
+    if (!videoRef.current) return;
 
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        const base64Image = canvas.toDataURL('image/jpeg', 0.8);
-        stopCamera();
-        onImageCapture(base64Image);
-      }
-    }
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(videoRef.current, 0, 0);
+    const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+
+    stopCamera();
+    onImageCapture(base64Image);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 50 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please select an image smaller than 50MB",
-          variant: "destructive"
-        });
-        return;
-      }
+    if (!file) return;
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        onImageCapture(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result === 'string') {
+        onImageCapture(result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
