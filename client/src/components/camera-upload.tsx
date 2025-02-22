@@ -35,7 +35,6 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
         } 
       });
 
-      // Verify we got video tracks
       if (mediaStream.getVideoTracks().length === 0) {
         throw new Error("No video track available");
       }
@@ -120,7 +119,8 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain z-10"
+                style={{ position: 'absolute', top: 0, left: 0 }}
               />
             )}
             {!stream && (
