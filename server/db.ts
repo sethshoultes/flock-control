@@ -29,9 +29,12 @@ console.log('Initializing database connection pool...');
 
 // Create connection pool with proper error handling
 export const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DEPLOYMENT 
+    ? process.env.DATABASE_URL.replace('.us-east-2', '-pooler.us-east-2')
+    : process.env.DATABASE_URL,
   connectionTimeoutMillis: 5000, // 5 second timeout
-  max: 20 // Maximum number of clients in the pool
+  max: 20, // Maximum number of clients in the pool
+  ssl: process.env.DEPLOYMENT ? { rejectUnauthorized: false } : undefined
 });
 
 // Add error handler for the pool
