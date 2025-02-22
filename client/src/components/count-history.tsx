@@ -9,7 +9,7 @@ import { useCountStore } from "@/lib/store";
 import { Cloud, CloudOff, Info, Image as ImageIcon, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,6 +21,7 @@ interface CountHistoryProps {
 export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { counts: localCounts, deleteCounts } = useCountStore();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
@@ -41,6 +42,7 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
       await apiRequest("DELETE", "/api/counts", { countIds: ids });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
       toast({
         title: "Success",
         description: "Selected items have been deleted",
@@ -62,8 +64,8 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
     // Update local state
     deleteCounts(ids);
 
-    // If user is authenticated and online, also delete from server
-    if (user && true) { //isOnline is not used here anymore.  Assuming always true for deletion.
+    // If user is authenticated, also delete from server
+    if (user) {
       const serverIds = ids.filter(id => typeof id === 'number');
       if (serverIds.length > 0) {
         await deleteMutation.mutateAsync(serverIds as number[]);
@@ -117,11 +119,6 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
               <div className="space-y-2">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
-                    <Checkbox
-                      checked={selectedIds.has(count.id)}
-                      onCheckedChange={() => toggleSelection(count.id)}
-                      className="mt-1"
-                    />
                     {count.imageUrl ? (
                       <button
                         onClick={() => setSelectedImage(count.imageUrl)}
@@ -149,11 +146,17 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
                       </div>
                     </div>
                   </div>
-                  {count.userId === 0 ? (
-                    <CloudOff className="h-4 w-4 text-orange-500" />
-                  ) : (
-                    <Cloud className="h-4 w-4 text-blue-500" />
-                  )}
+                  <div className="flex items-center gap-4">
+                    {count.userId === 0 ? (
+                      <CloudOff className="h-4 w-4 text-orange-500" />
+                    ) : (
+                      <Cloud className="h-4 w-4 text-blue-500" />
+                    )}
+                    <Checkbox
+                      checked={selectedIds.has(count.id)}
+                      onCheckedChange={() => toggleSelection(count.id)}
+                    />
+                  </div>
                 </div>
 
                 {count.breed && (
