@@ -9,6 +9,19 @@ import { and, inArray } from "drizzle-orm";
 import { achievementService } from "./achievements";
 import { pool } from "./db";
 
+class APIError extends Error {
+  statusCode: number;
+  code: string;
+
+  constructor(message: string, statusCode: number, code: string) {
+    super(message);
+    this.statusCode = statusCode;
+    this.code = code;
+    this.name = 'APIError';
+  }
+}
+
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -28,10 +41,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error('Health check failed:', error);
-      res.status(503).json({ 
-        status: 'unhealthy', 
+      res.status(503).json({
+        status: 'unhealthy',
         database: 'disconnected',
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
@@ -106,17 +119,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const content = response.choices[0].message.content;
       if (!content) {
-        throw new Error("No response from OpenAI");
+        throw new APIError("That doesn't look like a chicken, you silly goose! 🦆", 400, 'NOT_CHICKEN');
       }
 
-      const result = JSON.parse(content);
+      let result;
+      try {
+        result = JSON.parse(content);
+      } catch (error) {
+        throw new APIError("That doesn't look like a chicken, you silly goose! 🦆", 400, 'NOT_CHICKEN');
+      }
 
       // Validate all required fields are present
       if (typeof result.count !== 'number' ||
         typeof result.breed !== 'string' ||
         typeof result.confidence !== 'number' ||
         !Array.isArray(result.labels)) {
-        throw new Error("Invalid response format from OpenAI");
+        throw new APIError("That doesn't look like a chicken, you silly goose! 🦆", 400, 'NOT_CHICKEN');
       }
 
       // Add additional breed information to labels if present
@@ -177,8 +195,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error('Error in /api/analyze:', error);
-      const message = error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({ error: message });
+      const message = error instanceof APIError ? error.message : "An unknown error occurred";
+      const statusCode = error instanceof APIError ? error.statusCode : 500;
+      res.status(statusCode).json({ error: message, code: error instanceof APIError ? error.code : undefined });
     }
   });
 
