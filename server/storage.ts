@@ -17,6 +17,9 @@ async function hashPassword(password: string) {
 
 async function comparePasswords(supplied: string, stored: string) {
   const [hashed, salt] = stored.split(".");
+  if (!hashed || !salt) {
+    throw new Error("Invalid password format");
+  }
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
@@ -27,6 +30,7 @@ const PostgresSessionStore = connectPg(session);
 export interface IStorage {
   // User methods
   createUser(user: InsertUser): Promise<User>;
+  getUserById(id: number): Promise<User | null>;
   getUserByUsername(username: string): Promise<User | null>;
   validateUser(username: string, password: string): Promise<User | null>;
 
@@ -66,6 +70,15 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return user;
+  }
+
+  async getUserById(id: number): Promise<User | null> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id));
+
+    return user || null;
   }
 
   async getUserByUsername(username: string): Promise<User | null> {

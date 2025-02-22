@@ -1,5 +1,7 @@
 import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
 import { insertUserSchema, loginSchema } from "@shared/schema";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -26,58 +28,93 @@ export function setupAuth(app: Express) {
     })
   );
 
+  // Initialize Passport and restore authentication state from session
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Configure Passport's Local Strategy
+  passport.use(new LocalStrategy(async (username, password, done) => {
+    try {
+      const user = await storage.validateUser(username, password);
+      if (!user) {
+        return done(null, false, { message: "Invalid username or password" });
+      }
+      return done(null, user);
+    } catch (error) {
+      return done(error);
+    }
+  }));
+
+  // Serialize user for the session
+  passport.serializeUser((user: any, done) => {
+    done(null, user.id);
+  });
+
+  // Deserialize user from the session
+  passport.deserializeUser(async (id: number, done) => {
+    try {
+      const user = await storage.getUserById(id);
+      done(null, user);
+    } catch (error) {
+      done(error);
+    }
+  });
+
   // Authentication routes
   app.post("/api/register", async (req, res) => {
     try {
       const data = insertUserSchema.parse(req.body);
+      const existingUser = await storage.getUserByUsername(data.username);
+
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already taken" });
+      }
+
       const user = await storage.createUser(data);
 
-      // Start session
-      req.session.userId = user.id;
-
-      res.status(201).json({
-        id: user.id,
-        username: user.username,
-        createdAt: user.createdAt,
+      // Log in the user after registration
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ error: "Failed to login after registration" });
+        }
+        return res.status(201).json({
+          id: user.id,
+          username: user.username,
+          createdAt: user.createdAt,
+        });
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: "Invalid input: " + error.errors[0].message });
       } else {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ error: error instanceof Error ? error.message : "Registration failed" });
       }
     }
   });
 
-  app.post("/api/login", async (req, res) => {
-    try {
-      const { username, password } = loginSchema.parse(req.body);
-      const user = await storage.validateUser(username, password);
-
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+      if (err) {
+        return res.status(500).json({ error: "Login failed" });
+      }
       if (!user) {
-        res.status(401).json({ error: "Invalid username or password" });
-        return;
+        return res.status(401).json({ error: info?.message || "Invalid username or password" });
       }
-
-      // Start session
-      req.session.userId = user.id;
-
-      res.json({
-        id: user.id,
-        username: user.username,
-        createdAt: user.createdAt,
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ error: "Login failed" });
+        }
+        return res.json({
+          id: user.id,
+          username: user.username,
+          createdAt: user.createdAt,
+        });
       });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Invalid input: " + error.errors[0].message });
-      } else {
-        res.status(400).json({ error: error.message });
-      }
-    }
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res) => {
-    req.session.destroy(err => {
+    req.logout((err) => {
       if (err) {
         res.status(500).json({ error: "Failed to logout" });
       } else {
@@ -87,18 +124,17 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/me", (req, res) => {
-    if (!req.session.userId) {
+    if (!req.isAuthenticated()) {
       res.status(401).json({ error: "Not authenticated" });
       return;
     }
-
-    res.json({ userId: req.session.userId });
+    res.json(req.user);
   });
 }
 
 // Middleware to check if user is authenticated
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.userId) {
+  if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Authentication required" });
     return;
   }
