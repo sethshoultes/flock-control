@@ -42,12 +42,10 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
       await apiRequest("DELETE", "/api/counts", { countIds: ids });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
       toast({
         title: "Success",
         description: "Selected items have been deleted",
       });
-      setSelectedIds(new Set());
     },
     onError: (error) => {
       toast({
@@ -64,11 +62,24 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
     // Update local state first
     deleteCounts(ids);
 
+    // Clear selection
+    setSelectedIds(new Set());
+
     // If user is authenticated, also delete from server
     if (user) {
       const serverIds = ids.filter(id => typeof id === 'number');
       if (serverIds.length > 0) {
-        await deleteMutation.mutateAsync(serverIds);
+        try {
+          await deleteMutation.mutateAsync(serverIds);
+          // Force refresh of the counts data
+          queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to delete some items. Please try again.",
+            variant: "destructive",
+          });
+        }
       }
     }
   };
@@ -116,46 +127,47 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
             <Card key={count.id} className="p-4">
               <div className="space-y-2">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    {count.imageUrl ? (
-                      <button
-                        onClick={() => setSelectedImage(count.imageUrl)}
-                        className="w-16 h-16 rounded-lg overflow-hidden border bg-muted hover:opacity-80 transition-opacity"
-                      >
-                        <img
-                          src={count.imageUrl}
-                          alt={`${count.count} chickens`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ) : (
-                      <div className="w-16 h-16 rounded-lg border bg-muted flex items-center justify-center">
-                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                    )}
-                    <div>
-                      <div className="font-medium">
-                        {count.count} {count.count === 1 ? 'chicken' : 'chickens'}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {count.timestamp
-                          ? format(new Date(count.timestamp), 'MMM d, yyyy h:mm a')
-                          : 'No date'}
+                    <div className="flex items-start gap-4">
+                      {count.imageUrl ? (
+                        <button
+                          onClick={() => setSelectedImage(count.imageUrl)}
+                          className="w-16 h-16 rounded-lg overflow-hidden border bg-muted hover:opacity-80 transition-opacity"
+                        >
+                          <img
+                            src={count.imageUrl}
+                            alt={`${count.count} chickens`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ) : (
+                        <div className="w-16 h-16 rounded-lg border bg-muted flex items-center justify-center">
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium">
+                          {count.count} {count.count === 1 ? 'chicken' : 'chickens'}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {count.timestamp
+                            ? format(new Date(count.timestamp), 'MMM d, yyyy h:mm a')
+                            : 'No date'}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                      {count.userId === 0 ? (
+                        <CloudOff className="h-4 w-4 text-orange-500" />
+                      ) : (
+                        <Cloud className="h-4 w-4 text-blue-500" />
+                      )}
+                      <Checkbox
+                        checked={selectedIds.has(count.id)}
+                        onCheckedChange={() => toggleSelection(count.id)}
+                        aria-label="Select item"
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    {count.userId === 0 ? (
-                      <CloudOff className="h-4 w-4 text-orange-500" />
-                    ) : (
-                      <Cloud className="h-4 w-4 text-blue-500" />
-                    )}
-                    <Checkbox
-                      checked={selectedIds.has(count.id)}
-                      onCheckedChange={() => toggleSelection(count.id)}
-                    />
-                  </div>
-                </div>
 
                 {count.breed && (
                   <div className="flex items-center gap-2 text-sm">
