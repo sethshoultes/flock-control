@@ -149,13 +149,13 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
           </div>
         </>
       ) : (
-        <div className="h-full flex flex-col items-center justify-center space-y-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
           <Button
             onClick={startCamera}
             disabled={isLoading}
             variant="default"
             size="lg"
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold"
+            className="bg-blue-500 hover:bg-blue-600 text-white font-bold min-w-[200px]"
           >
             <Camera className="h-6 w-6 mr-2" />
             Start Camera
@@ -173,7 +173,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
             disabled={isLoading}
             variant="outline"
             size="lg"
-            className="bg-white hover:bg-gray-100"
+            className="bg-white hover:bg-gray-100 min-w-[200px]"
           >
             <Upload className="h-6 w-6 mr-2" />
             Upload Image
