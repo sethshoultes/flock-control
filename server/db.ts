@@ -12,6 +12,9 @@ console.log('Environment check:', {
   DATABASE_URL: process.env.DATABASE_URL ? 'Set' : 'Not Set',
   PGHOST: process.env.PGHOST ? 'Set' : 'Not Set',
   PGDATABASE: process.env.PGDATABASE ? 'Set' : 'Not Set',
+  PGPORT: process.env.PGPORT ? 'Set' : 'Not Set',
+  PGUSER: process.env.PGUSER ? 'Set' : 'Not Set',
+  deployment: process.env.DEPLOYMENT ? 'Yes' : 'No'
 });
 
 if (!process.env.DATABASE_URL) {
