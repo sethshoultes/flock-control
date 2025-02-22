@@ -12,7 +12,6 @@ import { useCountStore } from "@/lib/store";
 import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
-import crypto from 'crypto';
 
 interface CountsResponse {
   counts: Count[];
@@ -30,19 +29,31 @@ export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { isOnline, addCount, queueForUpload, importCounts } = useCountStore();
+  const { isOnline, addCount, queueForUpload } = useCountStore();
   const { showTutorial, completeTutorial, isLoading: tutorialLoading } = useTutorial();
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
 
-  const { data: countsData } = useQuery<CountsResponse>({
+  // Add debugging logs
+  console.log('Auth state:', { user, isOnline });
+  console.log('Tutorial state:', { showTutorial, tutorialLoading });
+
+  const { data: countsData, isError: countsError } = useQuery<CountsResponse>({
     queryKey: ["/api/counts"],
     queryFn: async () => {
+      console.log('Fetching counts...');
       const res = await apiRequest("GET", "/api/counts");
-      return res.json();
+      const data = await res.json();
+      console.log('Counts data:', data);
+      return data;
     },
-    enabled: !!user && isOnline
+    enabled: !!user // Only fetch if user is logged in
   });
+
+  // Log any errors
+  if (countsError) {
+    console.error('Error fetching counts:', countsError);
+  }
 
   const analyzeMutation = useMutation<
     Array<AnalyzeResponse>,
@@ -56,47 +67,12 @@ export default function Home() {
       const results = await Promise.all(
         images.map(async (image) => {
           try {
-            if (!user) {
-              // Guest mode
-              const response = await apiRequest("POST", "/api/analyze", { image });
-              const responseData = await response.json();
-              return {
-                count: {
-                  ...responseData.count,
-                  id: crypto.randomUUID(),
-                  userId: 0,
-                  labels: [...(responseData.count.labels || []), "guest-mode"]
-                },
-                newAchievements: []
-              };
-            } else if (!isOnline) {
-              // Offline mode
-              queueForUpload(image);
-              throw new Error("You're offline. Images will be analyzed when you're back online.");
-            } else {
-              // Online & authenticated
-              const response = await apiRequest("POST", "/api/analyze", { image });
-              const responseData = await response.json();
-              setProcessingCount(prev => prev + 1);
-              return responseData;
-            }
+            const response = await apiRequest("POST", "/api/analyze", { image });
+            const responseData = await response.json();
+            setProcessingCount(prev => prev + 1);
+            return responseData;
           } catch (error) {
-            if (!user && error instanceof Error) {
-              // Fallback for guest mode on error
-              return {
-                count: {
-                  id: crypto.randomUUID(),
-                  count: 0,
-                  imageUrl: image,
-                  timestamp: new Date(),
-                  userId: 0,
-                  breed: null,
-                  confidence: null,
-                  labels: ["guest-mode", "ai-failed"]
-                } as Count,
-                newAchievements: []
-              };
-            }
+            console.error('Analysis error:', error);
             throw error;
           }
         })
@@ -105,7 +81,6 @@ export default function Home() {
       return results;
     },
     onSuccess: (data) => {
-      // Import counts into local store
       data.forEach(result => {
         if (result.count) {
           addCount(result.count);
@@ -113,49 +88,37 @@ export default function Home() {
       });
 
       if (user) {
-        // Refresh queries for authenticated users
         queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/achievements"] });
 
         // Show achievement notifications
-        const achievementsEarned = data.filter(result => result.newAchievements?.length > 0);
-        achievementsEarned.forEach(result => {
-          result.newAchievements?.forEach(achievement => {
-            toast({
-              title: "Achievement Unlocked! 🏆",
-              description: `${achievement.name} - ${achievement.description}`,
+        data.forEach(result => {
+          if (result.newAchievements && result.newAchievements.length > 0) {
+            result.newAchievements.forEach(achievement => {
+              toast({
+                title: "Achievement Unlocked! 🏆",
+                description: `${achievement.name} - ${achievement.description}`,
+              });
             });
-          });
+          }
         });
       }
 
-      // Calculate stats for toast message
       const totalChickens = data.reduce((sum, result) => sum + (result.count?.count || 0), 0);
-      const failedAnalysis = data.some(result => result.count?.labels?.includes("ai-failed"));
 
-      if (user) {
-        toast({
-          title: "Success",
-          description: `Analyzed ${data.length} images. Found ${totalChickens} chickens in total.`,
-        });
-      } else {
-        toast({
-          title: "Guest Mode",
-          description: failedAnalysis
-            ? "Some images couldn't be analyzed. Try again or sign in for better results."
-            : `Added ${data.length} images with ${totalChickens} chickens to local storage.`,
-          variant: failedAnalysis ? "destructive" : "default"
-        });
-      }
+      toast({
+        title: user ? "Success" : "Guest Mode",
+        description: `Analyzed ${data.length} images. Found ${totalChickens} chickens in total.`,
+      });
 
       setProcessingCount(0);
       setTotalImages(0);
     },
     onError: (error) => {
+      console.error('Mutation error:', error);
       toast({
-        title: !user ? "Guest Mode" : (isOnline ? "Error" : "Offline Mode"),
+        title: "Error",
         description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: isOnline ? "destructive" : "default",
+        variant: "destructive",
       });
       setProcessingCount(0);
       setTotalImages(0);
@@ -167,15 +130,18 @@ export default function Home() {
   };
 
   if (tutorialLoading) {
+    console.log('Tutorial is loading...');
     return null;
   }
 
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
-      <TutorialModal
-        isOpen={showTutorial}
-        onClose={completeTutorial}
-      />
+      {showTutorial && (
+        <TutorialModal
+          isOpen={showTutorial}
+          onClose={completeTutorial}
+        />
+      )}
 
       <Card>
         <CardHeader>
