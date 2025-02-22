@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { useAuthMutations } from "@/hooks/use-auth";
 import { LogIn, LogOut, User } from "lucide-react";
 import { useLocation } from "wouter";
 
 export function Header() {
-  const { user, logoutMutation } = useAuth();
+  const { user } = useAuth();
+  const { logoutMutation } = useAuthMutations();
   const [, setLocation] = useLocation();
 
   return (
