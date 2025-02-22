@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CameraUpload } from "@/components/camera-upload";
 import { CountHistory } from "@/components/count-history";
 import { PendingUploads } from "@/components/pending-uploads";
+import { ChickenLoader } from "@/components/chicken-loader";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -60,10 +61,14 @@ export default function Home() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <CameraUpload
-            onImageCapture={handleImageCapture}
-            isLoading={analyzeMutation.isPending}
-          />
+          {analyzeMutation.isPending ? (
+            <ChickenLoader />
+          ) : (
+            <CameraUpload
+              onImageCapture={handleImageCapture}
+              isLoading={analyzeMutation.isPending}
+            />
+          )}
         </CardContent>
       </Card>
 
