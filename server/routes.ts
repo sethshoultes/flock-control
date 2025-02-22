@@ -15,14 +15,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes and middleware
   setupAuth(app);
 
-  // Add health check endpoint
+  // Add health check endpoint with detailed status
   app.get("/api/health", async (req, res) => {
     try {
-      // Test database connection
       const client = await pool.connect();
       try {
         await client.query('SELECT 1');
-        res.json({ status: 'healthy', database: 'connected' });
+        res.json({ 
+          status: 'healthy', 
+          database: 'connected',
+          auth: req.isAuthenticated() ? 'authenticated' : 'unauthenticated'
+        });
       } finally {
         client.release();
       }
@@ -31,6 +34,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(503).json({ 
         status: 'unhealthy', 
         database: 'disconnected',
+        auth: req.isAuthenticated() ? 'authenticated' : 'unauthenticated',
         error: error instanceof Error ? error.message : 'Unknown error' 
       });
     }
@@ -192,7 +196,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching counts:', error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({ error: message });
+      // Send a more detailed error response
+      res.status(500).json({ 
+        error: message,
+        type: error instanceof Error ? error.constructor.name : 'Unknown',
+        timestamp: new Date().toISOString()
+      });
     }
   });
 

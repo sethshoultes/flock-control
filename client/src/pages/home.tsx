@@ -35,10 +35,15 @@ export default function Home() {
   const [totalImages, setTotalImages] = useState(0);
 
   // Add debugging logs
-  console.log('Auth state:', { user, isOnline });
-  console.log('Tutorial state:', { showTutorial, tutorialLoading });
+  console.log('Home component state:', { 
+    isAuthenticated: !!user, 
+    userId: user?.id,
+    isOnline,
+    showTutorial,
+    tutorialLoading 
+  });
 
-  const { data: countsData, isError: countsError } = useQuery<CountsResponse>({
+  const { data: countsData, isError: countsError, error: countsErrorData } = useQuery<CountsResponse>({
     queryKey: ["/api/counts"],
     queryFn: async () => {
       console.log('Fetching counts...');
@@ -47,13 +52,19 @@ export default function Home() {
       console.log('Counts data:', data);
       return data;
     },
-    enabled: !!user // Only fetch if user is logged in
+    enabled: !!user && isOnline, // Only fetch if user is logged in AND online
+    retry: 3, // Retry failed requests 3 times
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    onError: (error) => {
+      console.error('Error fetching counts:', error);
+      toast({
+        title: "Connection Error",
+        description: "Unable to fetch your counts. Please check your connection.",
+        variant: "destructive",
+      });
+    }
   });
 
-  // Log any errors
-  if (countsError) {
-    console.error('Error fetching counts:', countsError);
-  }
 
   const analyzeMutation = useMutation<
     Array<AnalyzeResponse>,
