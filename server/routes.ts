@@ -3,23 +3,27 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { OpenAI } from "openai";
 import { insertCountSchema } from "@shared/schema";
-import { ZodError } from "zod";
+import { setupAuth, requireAuth } from "./auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.post("/api/analyze", async (req, res) => {
+  // Set up authentication routes and middleware
+  setupAuth(app);
+
+  app.post("/api/analyze", requireAuth, async (req, res) => {
     try {
       const { image } = req.body;
+      const userId = req.session.userId!;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o", 
+        model: "gpt-4o",
         messages: [
           {
             role: "user",
             content: [
-              { 
-                type: "text", 
+              {
+                type: "text",
                 text: `Analyze this image of chickens and provide detailed information:
 
                 1. Total count of chickens in the image
@@ -61,10 +65,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = JSON.parse(content);
 
       // Validate all required fields are present
-      if (typeof result.count !== 'number' || 
-          typeof result.breed !== 'string' || 
-          typeof result.confidence !== 'number' ||
-          !Array.isArray(result.labels)) {
+      if (typeof result.count !== 'number' ||
+        typeof result.breed !== 'string' ||
+        typeof result.confidence !== 'number' ||
+        !Array.isArray(result.labels)) {
         throw new Error("Invalid response format from OpenAI");
       }
 
@@ -83,7 +87,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result.labels.push(`health:${result.healthStatus}`);
       }
 
-      const countRecord = await storage.addCount({
+      const countRecord = await storage.addCount(userId, {
         count: result.count,
         imageUrl: image,
         breed: result.breed,
@@ -98,9 +102,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/counts", async (_req, res) => {
+  app.get("/api/counts", requireAuth, async (req, res) => {
     try {
-      const counts = await storage.getCounts();
+      const userId = req.session.userId!;
+      const counts = await storage.getCounts(userId);
       res.json({ counts });
     } catch (error) {
       const message = error instanceof Error ? error.message : "An unknown error occurred";
