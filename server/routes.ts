@@ -15,17 +15,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes and middleware
   setupAuth(app);
 
-  // Add health check endpoint with detailed status
+  // Add health check endpoint
   app.get("/api/health", async (req, res) => {
     try {
+      // Test database connection
       const client = await pool.connect();
       try {
         await client.query('SELECT 1');
-        res.json({ 
-          status: 'healthy', 
-          database: 'connected',
-          auth: req.isAuthenticated() ? 'authenticated' : 'unauthenticated'
-        });
+        res.json({ status: 'healthy', database: 'connected' });
       } finally {
         client.release();
       }
@@ -34,7 +31,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(503).json({ 
         status: 'unhealthy', 
         database: 'disconnected',
-        auth: req.isAuthenticated() ? 'authenticated' : 'unauthenticated',
         error: error instanceof Error ? error.message : 'Unknown error' 
       });
     }
@@ -67,120 +63,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Processing image analysis request for user ${userId} (authenticated: ${isAuthenticated})`);
 
-      try {
-        const response = await openai.chat.completions.create({
-          model: "gpt-4-vision-preview-v2",
-          messages: [
-            {
-              role: "user",
-              content: [
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Analyze this image of chickens and provide detailed information:
+
+                1. Total count of chickens in the image
+                2. Primary breed identification with confidence level (1-100)
+                3. If multiple breeds are present, list all identified breeds
+                4. Age classification for the group (chicks/juveniles/adults)
+                5. Health assessment including:
+                   - Overall condition (healthy/concerning/needs attention)
+                   - Any visible health indicators
+                6. Environmental observations (free-range/caged/indoor/outdoor)
+                7. Additional characteristics or notable features
+
+                Respond with a JSON object in this format:
                 {
-                  type: "text",
-                  text: `Analyze this image of chickens and provide detailed information:
-
-                  1. Total count of chickens in the image
-                  2. Primary breed identification with confidence level (1-100)
-                  3. If multiple breeds are present, list all identified breeds
-                  4. Age classification for the group (chicks/juveniles/adults)
-                  5. Health assessment including:
-                     - Overall condition (healthy/concerning/needs attention)
-                     - Any visible health indicators
-                  6. Environmental observations (free-range/caged/indoor/outdoor)
-                  7. Additional characteristics or notable features
-
-                  Respond with a JSON object in this format:
-                  {
-                    "count": number,
-                    "breed": string,
-                    "additionalBreeds": string[] | null,
-                    "confidence": number,
-                    "ageGroup": string,
-                    "healthStatus": string,
-                    "labels": string[]
-                  }`
-                },
-                {
-                  type: "image_url",
-                  image_url: { url: image }
-                }
-              ]
-            }
-          ],
-          max_tokens: 4096,
-          response_format: { type: "json_object" }
-        });
-
-        const content = response.choices[0].message.content;
-        if (!content) {
-          throw new Error("No response from OpenAI");
-        }
-
-        const result = JSON.parse(content);
-
-        // Validate all required fields are present
-        if (typeof result.count !== 'number' ||
-          typeof result.breed !== 'string' ||
-          typeof result.confidence !== 'number' ||
-          !Array.isArray(result.labels)) {
-          throw new Error("Invalid response format from OpenAI");
-        }
-
-        // Process the count for database storage
-        let count;
-        if (isAuthenticated) {
-          try {
-            count = await storage.addCount(userId, {
-              count: result.count,
-              imageUrl: image,
-              breed: result.breed,
-              confidence: result.confidence,
-              labels: result.labels,
-              userId: userId
-            });
-
-            const newAchievements = await achievementService.checkAchievements(userId);
-            res.json({ count, newAchievements });
-          } catch (error) {
-            console.error('Error saving count to database:', error);
-            res.status(500).json({ 
-              error: "Failed to save count",
-              details: error instanceof Error ? error.message : "Database error"
-            });
+                  "count": number,
+                  "breed": string,
+                  "additionalBreeds": string[] | null,
+                  "confidence": number,
+                  "ageGroup": string,
+                  "healthStatus": string,
+                  "labels": string[]
+                }`
+              },
+              {
+                type: "image_url",
+                image_url: { url: image }
+              }
+            ]
           }
-        } else {
-          // Guest mode response
-          count = {
-            id: crypto.randomUUID(),
-            userId: 0,
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) {
+        throw new Error("No response from OpenAI");
+      }
+
+      const result = JSON.parse(content);
+
+      // Validate all required fields are present
+      if (typeof result.count !== 'number' ||
+        typeof result.breed !== 'string' ||
+        typeof result.confidence !== 'number' ||
+        !Array.isArray(result.labels)) {
+        throw new Error("Invalid response format from OpenAI");
+      }
+
+      // Add additional breed information to labels if present
+      if (result.additionalBreeds?.length) {
+        result.labels.push(...result.additionalBreeds.map(breed => `additional-breed:${breed}`));
+      }
+
+      // Add age group to labels
+      if (result.ageGroup) {
+        result.labels.push(`age:${result.ageGroup}`);
+      }
+
+      // Add health status to labels
+      if (result.healthStatus) {
+        result.labels.push(`health:${result.healthStatus}`);
+      }
+
+      let count;
+
+      // Only store in database if user is authenticated
+      if (isAuthenticated) {
+        console.log('Saving count to database for authenticated user');
+        try {
+          count = await storage.addCount(userId, {
             count: result.count,
             imageUrl: image,
-            timestamp: new Date(),
             breed: result.breed,
             confidence: result.confidence,
-            labels: [...result.labels, "guest-mode"]
-          };
-          res.json({ count });
-        }
-      } catch (error) {
-        console.error('OpenAI API Error:', error);
-        if (error instanceof Error && error.message.includes('deprecated')) {
-          res.status(503).json({ 
-            error: "Image analysis service is temporarily unavailable",
-            details: "Our AI service is being upgraded. Please try again in a few minutes."
+            labels: result.labels,
+            userId: userId
           });
-        } else {
-          res.status(500).json({ 
-            error: "Failed to analyze image",
-            details: error instanceof Error ? error.message : "Unknown error"
-          });
+          console.log('Successfully saved count:', count.id);
+
+          console.log('Checking achievements after new count');
+          const newAchievements = await achievementService.checkAchievements(userId);
+          if (newAchievements.length > 0) {
+            console.log('User earned new achievements:', newAchievements.map(a => a.name));
+          }
+          res.json({ count, newAchievements });
+        } catch (error) {
+          console.error('Error saving count to database:', error);
+          throw error;
         }
+      } else {
+        // For guest users, create a count object without storing in database
+        console.log('Creating guest mode count object');
+        count = {
+          id: crypto.randomUUID(),
+          userId: 0,
+          count: result.count,
+          imageUrl: image,
+          timestamp: new Date(),
+          breed: result.breed,
+          confidence: result.confidence,
+          labels: [...result.labels, "guest-mode"]
+        };
+        res.json({ count });
       }
     } catch (error) {
       console.error('Error in /api/analyze:', error);
-      res.status(500).json({ 
-        error: "Server error",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(500).json({ error: message });
     }
   });
 
@@ -194,15 +192,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching counts:', error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({ 
-        error: message,
-        type: error instanceof Error ? error.constructor.name : 'Unknown',
-        timestamp: new Date().toISOString()
-      });
+      res.status(500).json({ error: message });
     }
   });
 
-  // Setup achievements route
+  // Added achievement route
   app.get("/api/achievements", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
