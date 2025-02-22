@@ -28,14 +28,12 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
     setIsCameraLoading(true);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment'
-        } 
+        video: true
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        await videoRef.current.play();
+        videoRef.current.play();
         setStream(mediaStream);
         setIsCapturing(true);
       }
@@ -43,7 +41,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
       console.error("Camera error:", error);
       toast({
         title: "Camera Error",
-        description: "Failed to access camera. Please check permissions or try a different device.",
+        description: "Failed to access camera. Please check permissions.",
         variant: "destructive"
       });
     } finally {
@@ -96,36 +94,35 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   };
 
   return (
-    <div className="min-h-[400px] space-y-4">
+    <div className="w-full" style={{ minHeight: '400px' }}>
       {isCapturing ? (
-        <div className="space-y-4">
-          <div className="h-[300px] relative bg-black rounded-lg overflow-hidden">
+        <div>
+          <div className="bg-black rounded-lg" style={{ height: '400px', position: 'relative' }}>
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
             />
           </div>
-          <div className="flex justify-center gap-4">
+          <div className="mt-4 flex justify-center gap-4">
             <Button 
               onClick={captureImage}
               size="lg"
               disabled={isLoading}
             >
-              {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              ) : (
-                <Camera className="h-5 w-5 mr-2" />
-              )}
               Take Photo
             </Button>
             <Button
               variant="outline"
               onClick={stopCamera}
               size="lg"
-              disabled={isLoading}
             >
               Cancel
             </Button>
@@ -140,12 +137,18 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
             disabled={isLoading || isCameraLoading}
           >
             {isCameraLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <>
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                Starting Camera...
+              </>
             ) : (
-              <Camera className="h-5 w-5 mr-2" />
+              <>
+                <Camera className="h-5 w-5 mr-2" />
+                Open Camera
+              </>
             )}
-            {isCameraLoading ? "Starting Camera..." : "Open Camera"}
           </Button>
+
           <div className="relative">
             <Input
               type="file"
@@ -162,7 +165,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
               variant="outline"
               size="lg"
             >
-              <label htmlFor="image-upload" className="flex items-center justify-center">
+              <label htmlFor="image-upload" className="flex items-center justify-center cursor-pointer">
                 <Upload className="h-5 w-5 mr-2" />
                 Upload Image
               </label>
