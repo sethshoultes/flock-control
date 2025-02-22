@@ -12,13 +12,17 @@ export function DevTools() {
     return null;
   }
 
+  const handleResetTutorial = () => {
+    resetTutorial().catch(console.error);
+  };
+
   return (
     <div className="fixed bottom-4 right-4 flex gap-2">
       <Button
         variant="outline"
         size="sm"
-        onClick={resetTutorial}
-        className="bg-purple-100"
+        onClick={handleResetTutorial}
+        className="bg-purple-100 hover:bg-purple-200"
       >
         <BookOpen className="h-4 w-4 mr-2 text-purple-600" />
         Show Tutorial

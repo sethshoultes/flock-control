@@ -54,14 +54,17 @@ export default function Home() {
     analyzeMutation.mutate(base64Image);
   };
 
-  // Don't render anything while tutorial state is loading
+  // Show nothing while tutorial state is loading to prevent flashing
   if (tutorialLoading) {
     return null;
   }
 
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
-      <TutorialModal isOpen={showTutorial} onClose={completeTutorial} />
+      <TutorialModal 
+        isOpen={showTutorial} 
+        onClose={completeTutorial} 
+      />
 
       <Card>
         <CardHeader>
