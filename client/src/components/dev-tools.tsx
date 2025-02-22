@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { Wifi, WifiOff } from "lucide-react";
+import { Wifi, WifiOff, BookOpen } from "lucide-react";
 import { useCountStore } from "@/lib/store";
+import { useTutorial } from "@/hooks/use-tutorial";
 
 export function DevTools() {
   const { isOnline, setOnline } = useCountStore();
+  const { resetTutorial } = useTutorial();
 
   // Only show in development
   if (import.meta.env.PROD) {
@@ -11,7 +13,17 @@ export function DevTools() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4">
+    <div className="fixed bottom-4 right-4 flex gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={resetTutorial}
+        className="bg-purple-100"
+      >
+        <BookOpen className="h-4 w-4 mr-2 text-purple-600" />
+        Show Tutorial
+      </Button>
+
       <Button
         variant="outline"
         size="sm"
