@@ -1,8 +1,11 @@
 import { counts, users, type Count, type InsertCount, type User, type InsertUser } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import MemoryStore from "memorystore";
-import session from "express-session";
 
 const scryptAsync = promisify(scrypt);
 
@@ -19,6 +22,8 @@ async function comparePasswords(supplied: string, stored: string) {
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
+const PostgresSessionStore = connectPg(session);
+
 export interface IStorage {
   // User methods
   createUser(user: InsertUser): Promise<User>;
@@ -33,20 +38,13 @@ export interface IStorage {
   sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private counts: Map<number, Count>;
-  private currentUserId: number;
-  private currentCountId: number;
+export class DatabaseStorage implements IStorage {
   readonly sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.counts = new Map();
-    this.currentUserId = 1;
-    this.currentCountId = 1;
-    this.sessionStore = new (MemoryStore(session))({
-      checkPeriod: 86400000 // Prune expired entries every 24h
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
     });
   }
 
@@ -56,22 +54,21 @@ export class MemStorage implements IStorage {
       throw new Error("Username already taken");
     }
 
-    const id = this.currentUserId++;
-    const hashedPassword = await hashPassword(insertUser.password);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
 
-    const user: User = {
-      id,
-      username: insertUser.username,
-      password: hashedPassword,
-      createdAt: new Date(),
-    };
-
-    this.users.set(id, user);
     return user;
   }
 
   async getUserByUsername(username: string): Promise<User | null> {
-    return Array.from(this.users.values()).find(u => u.username === username) || null;
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
+
+    return user || null;
   }
 
   async validateUser(username: string, password: string): Promise<User | null> {
@@ -83,30 +80,25 @@ export class MemStorage implements IStorage {
   }
 
   async getCounts(userId: number): Promise<Count[]> {
-    return Array.from(this.counts.values())
-      .filter(count => count.userId === userId)
-      .sort((a, b) => {
-        const timeA = a.timestamp?.getTime() ?? 0;
-        const timeB = b.timestamp?.getTime() ?? 0;
-        return timeB - timeA;
-      });
+    return db
+      .select()
+      .from(counts)
+      .where(eq(counts.userId, userId))
+      .orderBy(counts.timestamp, 'desc');
   }
 
   async addCount(userId: number, insertCount: InsertCount): Promise<Count> {
-    const id = this.currentCountId++;
-    const count: Count = {
-      ...insertCount,
-      id,
-      userId,
-      timestamp: new Date(),
-      imageUrl: insertCount.imageUrl ?? null,
-      breed: insertCount.breed ?? null,
-      confidence: insertCount.confidence ?? null,
-      labels: insertCount.labels ?? []
-    };
-    this.counts.set(id, count);
+    const [count] = await db
+      .insert(counts)
+      .values({
+        ...insertCount,
+        userId,
+        timestamp: new Date(),
+      })
+      .returning();
+
     return count;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
