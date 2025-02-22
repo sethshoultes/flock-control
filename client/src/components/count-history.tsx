@@ -6,15 +6,24 @@ import { ImageModal } from "@/components/image-modal";
 import type { Count } from "@shared/schema";
 import { format } from "date-fns";
 import { useCountStore } from "@/lib/store";
-import { Cloud, CloudOff, Info, Image as ImageIcon } from "lucide-react";
+import { Cloud, CloudOff, Info, Image as ImageIcon, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface CountHistoryProps {
   counts: Count[];
 }
 
 export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
-  const { counts: localCounts, isOnline } = useCountStore();
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const { counts: localCounts, isOnline, deleteCounts } = useCountStore();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
   // Combine and deduplicate counts from both sources
   const allCounts = Array.from(new Map(
@@ -27,6 +36,53 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
       return timeB - timeA;
     });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await apiRequest("DELETE", "/api/counts", { countIds: ids });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Selected items have been deleted",
+      });
+      setSelectedIds(new Set());
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete items",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDelete = async () => {
+    const ids = Array.from(selectedIds);
+
+    // Update local state
+    deleteCounts(ids);
+
+    // If user is authenticated and online, also delete from server
+    if (user && isOnline) {
+      const serverIds = ids.filter(id => typeof id === 'number');
+      if (serverIds.length > 0) {
+        await deleteMutation.mutateAsync(serverIds as number[]);
+      }
+    }
+
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelection = (id: string | number) => {
+    const newSelection = new Set(selectedIds);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedIds(newSelection);
+  };
+
   if (allCounts.length === 0) {
     return (
       <Card className="p-6 text-center text-muted-foreground">
@@ -37,6 +93,23 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
 
   return (
     <>
+      {selectedIds.size > 0 && (
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            {selectedIds.size} item{selectedIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete Selected
+          </Button>
+        </div>
+      )}
+
       <ScrollArea className="h-[300px] w-full rounded-md border">
         <div className="p-4 space-y-4">
           {allCounts.map((count) => (
@@ -44,6 +117,11 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
               <div className="space-y-2">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
+                    <Checkbox
+                      checked={selectedIds.has(count.id)}
+                      onCheckedChange={() => toggleSelection(count.id)}
+                      className="mt-1"
+                    />
                     {count.imageUrl ? (
                       <button
                         onClick={() => setSelectedImage(count.imageUrl)}

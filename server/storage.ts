@@ -1,6 +1,6 @@
 import { counts, users, type Count, type InsertCount, type User, type InsertUser } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -37,6 +37,7 @@ export interface IStorage {
   // Count methods
   getCounts(userId: number): Promise<Count[]>;
   addCount(userId: number, count: InsertCount): Promise<Count>;
+  deleteCounts(userId: number, countIds: number[]): Promise<void>;
 
   // Session store
   sessionStore: session.Store;
@@ -124,6 +125,17 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return count;
+  }
+
+  async deleteCounts(userId: number, countIds: number[]): Promise<void> {
+    await db
+      .delete(counts)
+      .where(
+        and(
+          eq(counts.userId, userId),
+          inArray(counts.id, countIds)
+        )
+      );
   }
 }
 

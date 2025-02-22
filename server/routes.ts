@@ -5,12 +5,30 @@ import { OpenAI } from "openai";
 import { insertCountSchema } from "@shared/schema";
 import { setupAuth, requireAuth } from "./auth";
 import * as crypto from 'crypto';
+import { and, inArray } from "drizzle-orm";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes and middleware
   setupAuth(app);
+
+  app.delete("/api/counts", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { countIds } = req.body;
+
+      if (!Array.isArray(countIds)) {
+        return res.status(400).json({ error: "countIds must be an array" });
+      }
+
+      await storage.deleteCounts(userId, countIds);
+      res.sendStatus(200);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(500).json({ error: message });
+    }
+  });
 
   app.post("/api/analyze", async (req, res) => {
     try {

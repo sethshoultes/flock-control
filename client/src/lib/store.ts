@@ -19,6 +19,10 @@ interface CountState {
 }
 
 interface CountStore extends CountState {
+  counts: Count[];
+  pendingUploads: PendingUpload[];
+  isOnline: boolean;
+  isSyncing: boolean;
   addCount: (count: Count) => void;
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
@@ -27,6 +31,7 @@ interface CountStore extends CountState {
   clearCounts: () => void;
   importCounts: (counts: Count[]) => void;
   updateCount: (id: string | number, updates: Partial<Count>) => void;
+  deleteCounts: (ids: (string | number)[]) => void;
 }
 
 export const useCountStore = create<CountStore>()(
@@ -45,7 +50,7 @@ export const useCountStore = create<CountStore>()(
 
       updateCount: (id, updates) => {
         set((state) => ({
-          counts: state.counts.map(count => 
+          counts: state.counts.map(count =>
             count.id.toString() === id.toString() ? { ...count, ...updates } : count
           )
         }));
@@ -128,6 +133,12 @@ export const useCountStore = create<CountStore>()(
 
       importCounts: (counts) => {
         set({ counts });
+      },
+
+      deleteCounts: (ids) => {
+        set((state) => ({
+          counts: state.counts.filter(count => !ids.includes(count.id))
+        }));
       },
     }),
     {
