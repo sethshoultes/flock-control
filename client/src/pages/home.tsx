@@ -12,6 +12,7 @@ import { useCountStore } from "@/lib/store";
 import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
+import crypto from 'crypto';
 
 export default function Home() {
   const { toast } = useToast();
@@ -42,34 +43,53 @@ export default function Home() {
       setTotalImages(images.length);
       setProcessingCount(0);
 
-      // If not logged in, just store the images locally
-      if (!user) {
-        return images.map((image) => ({
-          count: {
-            id: crypto.randomUUID(),
-            count: 0,
-            imageUrl: image,
-            timestamp: new Date(),
-            userId: 0, // Guest user
-            breed: null,
-            confidence: null,
-            labels: ["guest-mode"]
-          } as Count
-        }));
-      }
-
-      // If logged in but offline, queue for later processing
-      if (!isOnline) {
-        images.forEach(image => queueForUpload(image));
-        throw new Error("You're offline. Images will be analyzed when you're back online.");
-      }
-
-      // Online & logged in - process with AI
+      // Process images with AI regardless of login status
       const results = await Promise.all(
         images.map(async (image, index) => {
-          const response = await apiRequest("POST", "/api/analyze", { image });
-          setProcessingCount(prev => prev + 1);
-          return response.json();
+          try {
+            let count: Count;
+
+            if (!user) {
+              // Guest mode - process locally but still use AI
+              const response = await apiRequest("POST", "/api/analyze", { image });
+              const data = await response.json();
+              count = {
+                ...data.count,
+                id: crypto.randomUUID(),
+                userId: 0, // Guest user
+                labels: [...(data.count.labels || []), "guest-mode"]
+              };
+            } else if (!isOnline) {
+              // Logged in but offline - queue for processing
+              queueForUpload(image);
+              throw new Error("You're offline. Images will be analyzed when you're back online.");
+            } else {
+              // Online & logged in - process normally
+              const response = await apiRequest("POST", "/api/analyze", { image });
+              const data = await response.json();
+              count = data.count;
+            }
+
+            setProcessingCount(prev => prev + 1);
+            return { count };
+          } catch (error) {
+            if (!user && error instanceof Error) {
+              // For guest mode, create a basic count if AI fails
+              return {
+                count: {
+                  id: crypto.randomUUID(),
+                  count: 0,
+                  imageUrl: image,
+                  timestamp: new Date(),
+                  userId: 0,
+                  breed: null,
+                  confidence: null,
+                  labels: ["guest-mode", "ai-failed"]
+                } as Count
+              };
+            }
+            throw error;
+          }
         })
       );
 
@@ -82,6 +102,7 @@ export default function Home() {
       data.forEach(result => addCount(result.count));
 
       const totalChickens = data.reduce((sum, result) => sum + result.count.count, 0);
+      const failedAnalysis = data.some(result => result.count.labels?.includes("ai-failed"));
 
       if (user) {
         toast({
@@ -91,7 +112,10 @@ export default function Home() {
       } else {
         toast({
           title: "Guest Mode",
-          description: `Added ${data.length} images to your local storage.`,
+          description: failedAnalysis 
+            ? "Some images couldn't be analyzed. Try again or sign in for better results."
+            : `Added ${data.length} images with ${totalChickens} chickens to local storage.`,
+          variant: failedAnalysis ? "destructive" : "default"
         });
       }
 
