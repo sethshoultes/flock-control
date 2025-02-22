@@ -39,7 +39,7 @@ export const useCountStore = create<CountStore>()(
     (set, get) => ({
       counts: [],
       pendingUploads: [],
-      isOnline: navigator.onLine,
+      isOnline: true, // Start optimistically
       isSyncing: false,
 
       addCount: (count) => {
@@ -120,10 +120,23 @@ export const useCountStore = create<CountStore>()(
         }
       },
 
-      setOnline: (status) => {
-        set({ isOnline: status });
+      setOnline: async (status) => {
         if (status) {
-          get().syncPendingUploads();
+          // Verify actual API connectivity
+          try {
+            const response = await fetch('/api/health');
+            const isConnected = response.ok;
+            set({ isOnline: isConnected });
+
+            if (isConnected) {
+              get().syncPendingUploads();
+            }
+          } catch (error) {
+            console.error('Connection check failed:', error);
+            set({ isOnline: false });
+          }
+        } else {
+          set({ isOnline: false });
         }
       },
 
@@ -171,8 +184,12 @@ export const useCountStore = create<CountStore>()(
   )
 );
 
-// Set up online/offline listeners
+// Set up online/offline listeners with actual connectivity check
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => useCountStore.getState().setOnline(true));
-  window.addEventListener('offline', () => useCountStore.getState().setOnline(false));
+  const checkConnectivity = () => useCountStore.getState().setOnline(navigator.onLine);
+  window.addEventListener('online', checkConnectivity);
+  window.addEventListener('offline', checkConnectivity);
+
+  // Initial connectivity check
+  checkConnectivity();
 }

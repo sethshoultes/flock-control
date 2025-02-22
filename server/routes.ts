@@ -7,12 +7,34 @@ import { setupAuth, requireAuth } from "./auth";
 import * as crypto from 'crypto';
 import { and, inArray } from "drizzle-orm";
 import { achievementService } from "./achievements";
+import { pool } from "./db";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes and middleware
   setupAuth(app);
+
+  // Add health check endpoint
+  app.get("/api/health", async (req, res) => {
+    try {
+      // Test database connection
+      const client = await pool.connect();
+      try {
+        await client.query('SELECT 1');
+        res.json({ status: 'healthy', database: 'connected' });
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Health check failed:', error);
+      res.status(503).json({ 
+        status: 'unhealthy', 
+        database: 'disconnected',
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
 
   app.delete("/api/counts", requireAuth, async (req, res) => {
     try {
