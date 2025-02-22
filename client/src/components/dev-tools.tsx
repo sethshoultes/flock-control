@@ -4,14 +4,14 @@ import { useAppStore } from "@/lib/store";
 import { DatabaseDebug } from "./database-debug";
 
 export function DevTools() {
-  const { isOnline, setOnline, resetTutorial } = useAppStore();
+  const store = useAppStore();
 
   const handleResetTutorial = () => {
-    resetTutorial().catch(console.error);
+    store.resetTutorial().catch(console.error);
   };
 
   const handleToggleOnline = () => {
-    setOnline(!isOnline);
+    store.setOnlineStatus(!store.isOnline).catch(console.error);
   };
 
   return (
@@ -32,14 +32,14 @@ export function DevTools() {
         variant="outline"
         size="sm"
         onClick={handleToggleOnline}
-        className={isOnline ? "bg-green-100" : "bg-orange-100"}
+        className={store.isOnline ? "bg-green-100" : "bg-orange-100"}
       >
-        {isOnline ? (
+        {store.isOnline ? (
           <Wifi className="h-4 w-4 mr-2 text-green-600" />
         ) : (
           <WifiOff className="h-4 w-4 mr-2 text-orange-600" />
         )}
-        {isOnline ? "Online" : "Offline"}
+        {store.isOnline ? "Online" : "Offline"}
       </Button>
     </div>
   );

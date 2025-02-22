@@ -20,7 +20,7 @@ interface AppState {
   addCount: (count: Count) => void;
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
-  setOnline: (status: boolean) => void;
+  setOnlineStatus: (status: boolean) => Promise<void>;
   removePendingUpload: (id: string) => void;
   clearCounts: () => void;
   importCounts: (counts: Count[]) => void;
@@ -178,7 +178,7 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      setOnline: async (status) => {
+      setOnlineStatus: async (status: boolean) => {
         if (status) {
           try {
             const response = await fetch('/api/health');
@@ -248,7 +248,7 @@ export const useAppStore = create<AppState>()(
 // Initialize app state
 if (typeof window !== 'undefined') {
   // Set up online/offline listeners
-  const checkConnectivity = () => useAppStore.getState().setOnline(navigator.onLine);
+  const checkConnectivity = () => useAppStore.getState().setOnlineStatus(navigator.onLine);
   window.addEventListener('online', checkConnectivity);
   window.addEventListener('offline', checkConnectivity);
 
