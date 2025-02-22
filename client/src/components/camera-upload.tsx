@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Camera, Upload } from "lucide-react";
+import { Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CameraUploadProps {
@@ -13,49 +12,34 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   const [isCapturing, setIsCapturing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
-  const [stream, setStream] = useState<MediaStream | null>(null);
-
-  // Handle video element initialization
-  useEffect(() => {
-    if (isCapturing && videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(error => {
-        console.error("Error playing video:", error);
-        toast({
-          title: "Camera Error",
-          description: "Failed to start video preview",
-          variant: "destructive"
-        });
-      });
-    }
-  }, [isCapturing, stream, toast]);
-
-  // Cleanup effect
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [stream]);
 
   const startCamera = async () => {
+    console.log("Starting camera...");
+
     try {
+      // First, check if the browser supports getUserMedia
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Camera API is not supported in this browser");
+        throw new Error("Your browser doesn't support camera access");
       }
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
+      // Request camera access
+      console.log("Requesting camera permission...");
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
       });
+      console.log("Camera permission granted!");
 
-      setStream(mediaStream);
-      setIsCapturing(true);
-
+      // Set up video element
+      if (videoRef.current) {
+        console.log("Setting up video preview...");
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+        setIsCapturing(true);
+        console.log("Camera should be visible now!");
+      } else {
+        console.error("Video element not found!");
+        throw new Error("Could not find video preview element");
+      }
     } catch (error) {
       console.error("Camera error:", error);
       toast({
@@ -66,95 +50,74 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
     }
   };
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+  const capture = () => {
+    if (!videoRef.current) {
+      console.error("No video element found for capture");
+      return;
     }
-    setStream(null);
-    setIsCapturing(false);
-  };
 
-  const captureImage = () => {
-    if (!videoRef.current) return;
+    console.log("Capturing image...");
 
+    // Create a canvas element to capture the current video frame
     const canvas = document.createElement('canvas');
     canvas.width = videoRef.current.videoWidth;
     canvas.height = videoRef.current.videoHeight;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      console.error("Could not get canvas context");
+      return;
+    }
 
-    ctx.drawImage(videoRef.current, 0, 0);
-    const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+    // Draw the current video frame to the canvas
+    context.drawImage(videoRef.current, 0, 0);
 
-    stopCamera();
-    onImageCapture(base64Image);
-  };
+    // Convert to base64
+    const imageData = canvas.toDataURL('image/jpeg');
+    console.log("Image captured successfully!");
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    // Stop the camera
+    const stream = videoRef.current.srcObject as MediaStream;
+    stream.getTracks().forEach(track => track.stop());
+    setIsCapturing(false);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result === 'string') {
-        onImageCapture(result);
-      }
-    };
-    reader.readAsDataURL(file);
+    // Send the image data to parent
+    onImageCapture(imageData);
   };
 
   return (
-    <div className="min-h-[400px] bg-black rounded-lg overflow-hidden">
+    <div className="relative min-h-[400px] bg-black rounded-lg overflow-hidden">
       {isCapturing ? (
-        <div className="relative h-full">
+        <>
           <video
             ref={videoRef}
             autoPlay
             playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover"
+            className="w-full h-full object-cover"
           />
           <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
-            <Button onClick={captureImage} disabled={isLoading}>
+            <Button 
+              onClick={capture}
+              disabled={isLoading}
+              size="lg"
+              className="bg-green-500 hover:bg-green-600"
+            >
               <Camera className="h-5 w-5 mr-2" />
               Take Photo
             </Button>
-            <Button variant="outline" onClick={stopCamera}>
-              Cancel
-            </Button>
           </div>
-        </div>
+        </>
       ) : (
-        <div className="h-full flex flex-col items-center justify-center gap-4 p-4">
-          <Button onClick={startCamera} disabled={isLoading} size="lg">
+        <div className="h-full flex items-center justify-center">
+          <Button
+            onClick={startCamera}
+            disabled={isLoading}
+            size="lg"
+            className="bg-blue-500 hover:bg-blue-600"
+          >
             <Camera className="h-5 w-5 mr-2" />
-            Open Camera
+            Start Camera
           </Button>
-
-          <div className="w-full max-w-sm">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={handleFileUpload}
-              disabled={isLoading}
-              className="hidden"
-              id="image-upload"
-            />
-            <Button
-              asChild
-              className="w-full"
-              disabled={isLoading}
-              variant="outline"
-              size="lg"
-            >
-              <label htmlFor="image-upload" className="flex items-center justify-center cursor-pointer">
-                <Upload className="h-5 w-5 mr-2" />
-                Upload Image
-              </label>
-            </Button>
-          </div>
         </div>
       )}
     </div>
