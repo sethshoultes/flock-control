@@ -20,7 +20,7 @@ interface AppState {
   addCount: (count: Count) => void;
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
-  setOnline: (status: boolean) => Promise<void>;
+  setOnline: (status: boolean) => void;
   removePendingUpload: (id: string) => void;
   clearCounts: () => void;
   importCounts: (counts: Count[]) => void;
@@ -42,18 +42,16 @@ interface PendingUpload {
 
 const TUTORIAL_KEY = 'chicken-counter-tutorial-shown';
 const STORAGE_KEY = 'chicken-counter-storage';
-const HEALTH_CHECK_TIMEOUT = 5000; // 5 seconds timeout for health checks
 
+// Create the store with proper initialization
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      // Count state
+      // Initial state
       counts: [],
       pendingUploads: [],
-      isOnline: navigator.onLine,
+      isOnline: true,
       isSyncing: false,
-
-      // Tutorial state
       showTutorial: true,
       tutorialLoading: false,
 
@@ -99,57 +97,30 @@ export const useAppStore = create<AppState>()(
           return;
         }
 
-        console.log(`Starting sync of ${state.pendingUploads.length} pending uploads`);
         set({ isSyncing: true });
 
         try {
           const results = await Promise.all(
             state.pendingUploads.map(async (upload) => {
               try {
-                console.log(`Attempting to sync upload ${upload.id}`);
                 const response = await apiRequest('POST', '/api/analyze', { image: upload.image });
                 const data = await response.json();
 
                 if (data.count) {
                   state.addCount(data.count);
                   state.removePendingUpload(upload.id);
-                  console.log(`Successfully synced upload ${upload.id}`);
                   return { success: true, count: data.count };
                 }
-
-                console.warn(`No count data received for upload ${upload.id}`);
                 return { success: false, error: new Error('No count data received') };
               } catch (error) {
-                console.error(`Upload error for ${upload.id}:`, error);
-                // Only increment retry count if it's a network error
-                if (error instanceof Error && error.message.includes('network')) {
-                  set((state) => ({
-                    pendingUploads: state.pendingUploads.map(pending =>
-                      pending.id === upload.id
-                        ? { ...pending, retryCount: pending.retryCount + 1 }
-                        : pending
-                    )
-                  }));
-                }
+                console.error('Upload error:', error);
                 return { success: false, error };
               }
             })
           );
 
           const successCount = results.filter(r => r.success).length;
-          const failCount = results.length - successCount;
-
-          console.log(`Sync completed: ${successCount} succeeded, ${failCount} failed`);
-
-          if (successCount > 0) {
-            const totalChickens = results.reduce((sum, r) => {
-              if (r.success && r.count) {
-                return sum + r.count.count;
-              }
-              return sum;
-            }, 0);
-            console.log(`Synced ${successCount} images, found ${totalChickens} chickens`);
-          }
+          console.log(`Sync completed: ${successCount} succeeded`);
         } catch (error) {
           console.error('Error during sync:', error);
         } finally {
@@ -157,36 +128,12 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      setOnline: async (status: boolean) => {
+      // Online/Offline management
+      setOnline: (status) => {
+        console.log('Setting online status:', status);
+        set({ isOnline: status });
         if (status) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
-
-            try {
-              const response = await fetch('/api/health', {
-                signal: controller.signal
-              });
-              clearTimeout(timeoutId);
-
-              const isConnected = response.ok;
-              console.log(`Health check completed. Connected: ${isConnected}`);
-              set({ isOnline: isConnected });
-
-              if (isConnected) {
-                get().syncPendingUploads();
-              }
-            } catch (error) {
-              console.warn('Health check failed:', error);
-              set({ isOnline: false });
-            }
-          } catch (error) {
-            console.error('Connection check failed:', error);
-            set({ isOnline: false });
-          }
-        } else {
-          console.log('Setting offline mode');
-          set({ isOnline: false });
+          get().syncPendingUploads();
         }
       },
 
@@ -242,7 +189,6 @@ export const useAppStore = create<AppState>()(
         getItem: async (name) => {
           try {
             const value = await get(name);
-            console.log('Retrieved from storage:', { name, value: value !== null ? 'Found' : 'Not found' });
             return value;
           } catch (error) {
             console.error('Failed to load from IndexedDB:', error);
@@ -252,7 +198,6 @@ export const useAppStore = create<AppState>()(
         setItem: async (name, value) => {
           try {
             await set(name, value);
-            console.log('Saved to storage:', { name, valueExists: value !== null });
           } catch (error) {
             console.error('Failed to save to IndexedDB:', error);
           }
@@ -260,7 +205,6 @@ export const useAppStore = create<AppState>()(
         removeItem: async (name) => {
           try {
             await set(name, undefined);
-            console.log('Removed from storage:', { name });
           } catch (error) {
             console.error('Failed to remove from IndexedDB:', error);
           }
@@ -273,11 +217,10 @@ export const useAppStore = create<AppState>()(
 // Initialize app state
 if (typeof window !== 'undefined') {
   // Set up online/offline listeners
-  const checkConnectivity = () => useAppStore.getState().setOnline(navigator.onLine);
-  window.addEventListener('online', checkConnectivity);
-  window.addEventListener('offline', checkConnectivity);
+  window.addEventListener('online', () => useAppStore.getState().setOnline(true));
+  window.addEventListener('offline', () => useAppStore.getState().setOnline(false));
 
-  // Initial connectivity check and tutorial state
-  checkConnectivity();
+  // Initial state setup
+  useAppStore.getState().setOnline(navigator.onLine);
   useAppStore.getState().initializeTutorial();
 }
