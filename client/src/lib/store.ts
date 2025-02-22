@@ -176,7 +176,9 @@ export const useAppStore = create<AppState>()(
 
       resetTutorial: async () => {
         try {
+          // First update IndexedDB
           await set(TUTORIAL_KEY, false);
+          // Then update the store state
           set({ showTutorial: true });
         } catch (error) {
           console.error('Failed to reset tutorial:', error);
