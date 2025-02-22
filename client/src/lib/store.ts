@@ -3,30 +3,36 @@ import { persist } from 'zustand/middleware';
 import { get, set } from 'idb-keyval';
 import type { Count, InsertCount } from '@shared/schema';
 
-interface CountStore {
+interface CountState {
   counts: Count[];
   pendingUploads: { image: string; timestamp: Date }[];
+  isOnline: boolean;
+}
+
+interface CountStore extends CountState {
   addCount: (count: Count) => void;
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
-  isOnline: boolean;
   setOnline: (status: boolean) => void;
 }
 
+// Create the store with persistence
 export const useCountStore = create<CountStore>()(
   persist(
     (set, get) => ({
+      // Persisted state
       counts: [],
       pendingUploads: [],
       isOnline: navigator.onLine,
 
-      addCount: (count: Count) => {
+      // Non-persisted functions
+      addCount: (count) => {
         set((state) => ({
           counts: [count, ...state.counts]
         }));
       },
 
-      queueForUpload: (image: string) => {
+      queueForUpload: (image) => {
         set((state) => ({
           pendingUploads: [
             ...state.pendingUploads,
@@ -65,7 +71,7 @@ export const useCountStore = create<CountStore>()(
         }
       },
 
-      setOnline: (status: boolean) => {
+      setOnline: (status) => {
         set({ isOnline: status });
         if (status) {
           // Try to sync when we come back online
@@ -81,12 +87,19 @@ export const useCountStore = create<CountStore>()(
           return value ?? null;
         },
         setItem: async (name, value) => {
-          await set(name, value);
+          // Only persist the state, not the functions
+          const { counts, pendingUploads, isOnline } = value;
+          await set(name, { counts, pendingUploads, isOnline });
         },
         removeItem: async (name) => {
           await set(name, undefined);
         },
       },
+      partialize: (state) => ({
+        counts: state.counts,
+        pendingUploads: state.pendingUploads,
+        isOnline: state.isOnline,
+      }),
     }
   )
 );
