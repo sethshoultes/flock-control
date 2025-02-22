@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { OpenAI } from "openai";
 import { insertCountSchema } from "@shared/schema";
 import { setupAuth, requireAuth } from "./auth";
+import * as crypto from 'crypto';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -14,9 +15,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/analyze", async (req, res) => {
     try {
       const { image } = req.body;
-      // Get userId from authenticated user, or use 0 for guest mode
-      const userId = req.isAuthenticated() ? (req.user as any).id : 0;
-      const isGuest = !req.isAuthenticated();
+      const isAuthenticated = req.isAuthenticated();
+      const userId = isAuthenticated ? (req.user as any).id : 0;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -89,21 +89,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result.labels.push(`health:${result.healthStatus}`);
       }
 
-      // Add guest mode label if applicable
-      if (isGuest) {
-        result.labels.push("guest-mode");
+      let count;
+
+      // Only store in database if user is authenticated
+      if (isAuthenticated) {
+        count = await storage.addCount(userId, {
+          count: result.count,
+          imageUrl: image,
+          breed: result.breed,
+          confidence: result.confidence,
+          labels: result.labels,
+          userId: userId
+        });
+      } else {
+        // For guest users, create a count object without storing in database
+        count = {
+          id: crypto.randomUUID(), // Client-side ID for guest mode
+          userId: 0,
+          count: result.count,
+          imageUrl: image,
+          timestamp: new Date(),
+          breed: result.breed,
+          confidence: result.confidence,
+          labels: [...result.labels, "guest-mode"]
+        };
       }
 
-      const countRecord = await storage.addCount(userId, {
-        count: result.count,
-        imageUrl: image,
-        breed: result.breed,
-        confidence: result.confidence,
-        labels: result.labels,
-        userId: userId
-      });
-
-      res.json({ count: countRecord });
+      res.json({ count });
     } catch (error) {
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       res.status(500).json({ error: message });
