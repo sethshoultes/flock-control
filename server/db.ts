@@ -3,9 +3,10 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
 
+// Configure WebSocket for Neon
 neonConfig.webSocketConstructor = ws;
 
-// Add debug logging to help diagnose environment variable issues
+// Add debug logging
 console.log('Starting database initialization...');
 console.log('Environment check:', {
   NODE_ENV: process.env.NODE_ENV,
@@ -27,24 +28,37 @@ if (!process.env.DATABASE_URL) {
 
 console.log('Initializing database connection pool...');
 
-// Update connection configuration for both development and production
-const connectionString = process.env.DATABASE_URL;
+// Connection configuration for both development and production
 const isProduction = process.env.NODE_ENV === 'production' || process.env.DEPLOYMENT === 'true';
 
 // Create connection pool with proper error handling
-export const pool = new Pool({ 
+const connectionConfig = {
   connectionString: isProduction 
-    ? connectionString.replace(/^postgres:/, 'postgres:pooler') // Use pooler in production
-    : connectionString,
+    ? process.env.DATABASE_URL.replace(/^postgres:/, 'postgres:pooler') // Use connection pooling in production
+    : process.env.DATABASE_URL,
+  ssl: isProduction 
+    ? { 
+        rejectUnauthorized: false,
+        // Add specific SSL options for production if needed
+      } 
+    : undefined,
   max: isProduction ? 10 : 20, // Reduce max connections in production
-  ssl: isProduction ? { rejectUnauthorized: false } : undefined,
-  connectionTimeoutMillis: 5000, // 5 second timeout
+  idleTimeoutMillis: 30000, // Timeout idle clients after 30 seconds
+  connectionTimeoutMillis: 5000, // Connection timeout after 5 seconds
+};
+
+console.log('Connection config (sanitized):', {
+  ...connectionConfig,
+  connectionString: connectionConfig.connectionString ? 'Set' : 'Not Set',
+  ssl: connectionConfig.ssl ? 'Configured' : 'Not Set'
 });
+
+// Create connection pool
+export const pool = new Pool(connectionConfig);
 
 // Add error handler for the pool
 pool.on('error', (err) => {
   console.error('Unexpected error on idle database client:', err);
-  // Log additional details in production
   if (isProduction) {
     console.error('Production database error details:', {
       code: err.code,
@@ -52,13 +66,16 @@ pool.on('error', (err) => {
       stack: err.stack
     });
   }
-  process.exit(-1);
+  // Don't exit in production, just log the error
+  if (!isProduction) {
+    process.exit(-1);
+  }
 });
 
 console.log('Creating Drizzle ORM instance...');
 export const db = drizzle(pool, { schema });
 
-// Test the connection and log the result
+// Test the connection
 (async () => {
   try {
     console.log('Testing database connection...');
@@ -74,7 +91,10 @@ export const db = drizzle(pool, { schema });
         stack: error instanceof Error ? error.stack : undefined
       });
     }
-    throw error;
+    // Don't throw in production, just log the error
+    if (!isProduction) {
+      throw error;
+    }
   }
 })();
 
