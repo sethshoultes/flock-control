@@ -42,10 +42,11 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        // Wait for video to be ready
-        await new Promise((resolve) => {
+        await new Promise<void>((resolve) => {
           if (videoRef.current) {
-            videoRef.current.onloadedmetadata = resolve;
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current!.play().then(() => resolve());
+            };
           }
         });
 
@@ -112,22 +113,27 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
     <div className="space-y-4">
       {isCapturing ? (
         <div className="space-y-4">
-          <div className="relative aspect-video w-full max-w-xl mx-auto overflow-hidden rounded-lg border bg-muted">
+          <div className="relative w-full aspect-video bg-muted rounded-lg border overflow-hidden">
             {stream && (
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="absolute inset-0 h-full w-full object-contain"
+                className="w-full h-full object-contain"
               />
+            )}
+            {!stream && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
             )}
           </div>
           <div className="flex gap-2">
             <Button 
               onClick={captureImage}
               className="flex-1"
-              disabled={isLoading}
+              disabled={isLoading || !stream}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -172,6 +178,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
               asChild
               className="w-full"
               disabled={isLoading}
+              variant="outline"
             >
               <label htmlFor="image-upload">
                 <Upload className="h-4 w-4 mr-2" />
