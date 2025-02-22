@@ -20,7 +20,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             content: [
               { 
                 type: "text", 
-                text: "Analyze this image and count the number of chickens. Respond with a JSON object containing a 'count' field with the number. For example: {'count': 5}" 
+                text: `Analyze this image of chickens and provide:
+                1. Total count of chickens
+                2. Primary breed identification with confidence level (1-100)
+                3. Notable characteristics or labels (e.g., 'healthy', 'free-range', 'young')
+
+                Respond with a JSON object in this format:
+                {
+                  "count": number,
+                  "breed": string,
+                  "confidence": number,
+                  "labels": string[]
+                }`
               },
               {
                 type: "image_url",
@@ -38,15 +49,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const result = JSON.parse(content);
-      const count = Number(result.count);
 
-      if (isNaN(count)) {
-        throw new Error("Invalid count received from OpenAI");
+      // Validate all required fields are present
+      if (typeof result.count !== 'number' || 
+          typeof result.breed !== 'string' || 
+          typeof result.confidence !== 'number' ||
+          !Array.isArray(result.labels)) {
+        throw new Error("Invalid response format from OpenAI");
       }
 
       const countRecord = await storage.addCount({
-        count,
-        imageUrl: image
+        count: result.count,
+        imageUrl: image,
+        breed: result.breed,
+        confidence: result.confidence,
+        labels: result.labels
       });
 
       res.json({ count: countRecord });

@@ -28,7 +28,10 @@ export class MemStorage implements IStorage {
       ...insertCount,
       id,
       timestamp: new Date(),
-      imageUrl: insertCount.imageUrl ?? null
+      imageUrl: insertCount.imageUrl ?? null,
+      breed: insertCount.breed ?? null,
+      confidence: insertCount.confidence ?? null,
+      labels: insertCount.labels ?? []
     };
     this.counts.set(id, count);
     return count;
