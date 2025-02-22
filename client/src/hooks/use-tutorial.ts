@@ -11,6 +11,7 @@ export function useTutorial() {
     async function checkTutorialStatus() {
       try {
         const hasSeenTutorial = await get(TUTORIAL_KEY);
+        console.log("Tutorial status from IndexedDB:", hasSeenTutorial);
         setShowTutorial(!hasSeenTutorial);
       } catch (error) {
         console.error("Failed to check tutorial status:", error);
@@ -26,6 +27,7 @@ export function useTutorial() {
     try {
       await set(TUTORIAL_KEY, true);
       setShowTutorial(false);
+      console.log("Tutorial completed and saved to IndexedDB");
     } catch (error) {
       console.error("Failed to save tutorial status:", error);
     }
@@ -33,8 +35,10 @@ export function useTutorial() {
 
   const resetTutorial = async () => {
     try {
+      console.log("Resetting tutorial...");
       await set(TUTORIAL_KEY, false);
       setShowTutorial(true);
+      console.log("Tutorial reset successful");
     } catch (error) {
       console.error("Failed to reset tutorial status:", error);
     }
