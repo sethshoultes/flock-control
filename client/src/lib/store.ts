@@ -42,6 +42,7 @@ interface PendingUpload {
 
 const TUTORIAL_KEY = 'chicken-counter-tutorial-shown';
 const STORAGE_KEY = 'chicken-counter-storage';
+const HEALTH_CHECK_TIMEOUT = 5000; // 5 seconds timeout for health checks
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -49,10 +50,10 @@ export const useAppStore = create<AppState>()(
       // Count state
       counts: [],
       pendingUploads: [],
-      isOnline: true,
+      isOnline: navigator.onLine, // Initialize with browser's online status
       isSyncing: false,
 
-      // Tutorial state - always starts as true until explicitly marked as seen
+      // Tutorial state
       showTutorial: true,
       tutorialLoading: false,
 
@@ -70,26 +71,6 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // Complete tutorial
-      completeTutorial: async () => {
-        try {
-          await set(TUTORIAL_KEY, true);
-          set({ showTutorial: false });
-        } catch (error) {
-          console.error('Failed to save tutorial completion:', error);
-        }
-      },
-
-      // Reset tutorial
-      resetTutorial: async () => {
-        try {
-          await set(TUTORIAL_KEY, false);
-          set({ showTutorial: true });
-        } catch (error) {
-          console.error('Failed to reset tutorial:', error);
-        }
-      },
-
       // Count actions
       addCount: (count) => {
         set((state) => ({
@@ -97,15 +78,8 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      updateCount: (id, updates) => {
-        set((state) => ({
-          counts: state.counts.map(count =>
-            count.id.toString() === id.toString() ? { ...count, ...updates } : count
-          )
-        }));
-      },
-
       queueForUpload: (image) => {
+        console.log('Queueing image for upload (offline mode)');
         set((state) => ({
           pendingUploads: [
             ...state.pendingUploads,
@@ -119,56 +93,61 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      removePendingUpload: (id) => {
-        set((state) => ({
-          pendingUploads: state.pendingUploads.filter(upload => upload.id !== id)
-        }));
-      },
-
       syncPendingUploads: async () => {
         const state = get();
         if (!state.isOnline || state.pendingUploads.length === 0 || state.isSyncing) {
           return;
         }
 
+        console.log(`Starting sync of ${state.pendingUploads.length} pending uploads`);
         set({ isSyncing: true });
 
         try {
           const results = await Promise.all(
             state.pendingUploads.map(async (upload) => {
               try {
+                console.log(`Attempting to sync upload ${upload.id}`);
                 const response = await apiRequest('POST', '/api/analyze', { image: upload.image });
                 const data = await response.json();
 
                 if (data.count) {
                   state.addCount(data.count);
                   state.removePendingUpload(upload.id);
+                  console.log(`Successfully synced upload ${upload.id}`);
                   return { success: true, count: data.count };
                 }
+
+                console.warn(`No count data received for upload ${upload.id}`);
                 return { success: false, error: new Error('No count data received') };
               } catch (error) {
-                console.error('Upload error:', error);
-                set((state) => ({
-                  pendingUploads: state.pendingUploads.map(pending =>
-                    pending.id === upload.id
-                      ? { ...pending, retryCount: pending.retryCount + 1 }
-                      : pending
-                  )
-                }));
+                console.error(`Upload error for ${upload.id}:`, error);
+                // Only increment retry count if it's a network error
+                if (error instanceof Error && error.message.includes('network')) {
+                  set((state) => ({
+                    pendingUploads: state.pendingUploads.map(pending =>
+                      pending.id === upload.id
+                        ? { ...pending, retryCount: pending.retryCount + 1 }
+                        : pending
+                    )
+                  }));
+                }
                 return { success: false, error };
               }
             })
           );
 
           const successCount = results.filter(r => r.success).length;
-          const totalChickens = results.reduce((sum, r) => {
-            if (r.success && r.count) {
-              return sum + r.count.count;
-            }
-            return sum;
-          }, 0);
+          const failCount = results.length - successCount;
+
+          console.log(`Sync completed: ${successCount} succeeded, ${failCount} failed`);
 
           if (successCount > 0) {
+            const totalChickens = results.reduce((sum, r) => {
+              if (r.success && r.count) {
+                return sum + r.count.count;
+              }
+              return sum;
+            }, 0);
             console.log(`Synced ${successCount} images, found ${totalChickens} chickens`);
           }
         } catch (error) {
@@ -181,22 +160,43 @@ export const useAppStore = create<AppState>()(
       setOnlineStatus: async (status: boolean) => {
         if (status) {
           try {
-            const response = await fetch('/api/health');
-            const isConnected = response.ok;
-            set({ isOnline: isConnected });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
 
-            if (isConnected) {
-              get().syncPendingUploads();
+            try {
+              const response = await fetch('/api/health', {
+                signal: controller.signal
+              });
+              clearTimeout(timeoutId);
+
+              const isConnected = response.ok;
+              console.log(`Health check completed. Connected: ${isConnected}`);
+              set({ isOnline: isConnected });
+
+              if (isConnected) {
+                get().syncPendingUploads();
+              }
+            } catch (error) {
+              console.warn('Health check failed:', error);
+              set({ isOnline: false });
             }
           } catch (error) {
             console.error('Connection check failed:', error);
             set({ isOnline: false });
           }
         } else {
+          console.log('Setting offline mode');
           set({ isOnline: false });
         }
       },
 
+      removePendingUpload: (id) => {
+        set((state) => ({
+          pendingUploads: state.pendingUploads.filter(upload => upload.id !== id)
+        }));
+      },
+
+      // Rest of the implementation remains unchanged
       clearCounts: () => {
         set({ counts: [], pendingUploads: [] });
       },
@@ -205,10 +205,36 @@ export const useAppStore = create<AppState>()(
         set({ counts });
       },
 
+      updateCount: (id, updates) => {
+        set((state) => ({
+          counts: state.counts.map(count =>
+            count.id.toString() === id.toString() ? { ...count, ...updates } : count
+          )
+        }));
+      },
+
       deleteCounts: (ids) => {
         set((state) => ({
           counts: state.counts.filter(count => !ids.includes(count.id))
         }));
+      },
+
+      completeTutorial: async () => {
+        try {
+          await set(TUTORIAL_KEY, true);
+          set({ showTutorial: false });
+        } catch (error) {
+          console.error('Failed to save tutorial completion:', error);
+        }
+      },
+
+      resetTutorial: async () => {
+        try {
+          await set(TUTORIAL_KEY, false);
+          set({ showTutorial: true });
+        } catch (error) {
+          console.error('Failed to reset tutorial:', error);
+        }
       },
     }),
     {
@@ -217,7 +243,7 @@ export const useAppStore = create<AppState>()(
         getItem: async (name) => {
           try {
             const value = await get(name);
-            console.log('Retrieved from storage:', { name, value });
+            console.log('Retrieved from storage:', { name, value: value !== null ? 'Found' : 'Not found' });
             return value;
           } catch (error) {
             console.error('Failed to load from IndexedDB:', error);
@@ -227,7 +253,7 @@ export const useAppStore = create<AppState>()(
         setItem: async (name, value) => {
           try {
             await set(name, value);
-            console.log('Saved to storage:', { name, value });
+            console.log('Saved to storage:', { name, valueExists: value !== null });
           } catch (error) {
             console.error('Failed to save to IndexedDB:', error);
           }

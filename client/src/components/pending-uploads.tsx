@@ -20,7 +20,7 @@ export function PendingUploads() {
           {isSyncing && <Loader2 className="h-4 w-4 animate-spin" />}
         </h3>
         <span className="text-sm text-muted-foreground">
-          {pendingUploads.length} image{pendingUploads.length !== 1 ? 's' : ''} queued
+          {pendingUploads.length} image{pendingUploads.length !== 1 ? 's' : ''} waiting to sync
         </span>
       </div>
 
@@ -39,7 +39,7 @@ export function PendingUploads() {
                   </div>
                   <div>
                     <div className="text-sm font-medium">
-                      Queued for processing
+                      {upload.retryCount > 0 ? 'Retrying sync...' : 'Waiting to sync'}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {format(new Date(upload.timestamp), 'MMM d, yyyy h:mm a')}
@@ -48,7 +48,7 @@ export function PendingUploads() {
                 </div>
                 {upload.retryCount > 0 && (
                   <div className="text-xs text-muted-foreground">
-                    Retries: {upload.retryCount}
+                    Retry attempt: {upload.retryCount}
                   </div>
                 )}
               </div>
