@@ -3,12 +3,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
 import { Wifi, WifiOff, BookOpen } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DevTools() {
   const store = useAppStore();
+  const { toast } = useToast();
 
-  const handleResetTutorial = () => {
-    store.resetTutorial().catch(console.error);
+  const handleResetTutorial = async () => {
+    try {
+      await store.resetTutorial();
+      toast({
+        title: "Success",
+        description: "Tutorial has been reset. Return to home page to see it.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reset tutorial",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleToggleOnline = () => {
@@ -59,7 +73,7 @@ export default function DevTools() {
               className="bg-purple-100 hover:bg-purple-200"
             >
               <BookOpen className="h-4 w-4 mr-2 text-purple-600" />
-              Show Tutorial
+              Reset Tutorial
             </Button>
           </div>
         </CardContent>

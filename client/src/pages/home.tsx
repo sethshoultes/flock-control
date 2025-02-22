@@ -129,7 +129,7 @@ export default function Home() {
 
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
-      {/* Always render tutorial modal when showTutorial is true */}
+      {/* Only show tutorial modal if not in dev tools and showTutorial is true */}
       {showTutorial && (
         <TutorialModal
           isOpen={showTutorial}
