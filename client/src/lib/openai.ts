@@ -1,6 +1,5 @@
 /**
  * Type definitions for OpenAI Vision API responses
- * Note: Using GPT-4o as it is the newest model released May 13, 2024
  */
 
 export interface ChickenCountResponse {
@@ -42,14 +41,14 @@ export function isValidBase64Image(str: string): boolean {
   if (!str?.startsWith('data:image/')) {
     return false;
   }
-  
+
   try {
     // Check if it's a valid data URL format
     const [header, content] = str.split(',');
     if (!header?.includes('base64') || !content) {
       return false;
     }
-    
+
     // Attempt to decode to verify it's valid base64
     atob(content);
     return true;
@@ -63,7 +62,7 @@ export function constructVisionMessage(base64Image: string): VisionMessage {
   if (!isValidBase64Image(base64Image)) {
     throw new Error('Invalid base64 image format');
   }
-  
+
   return {
     role: 'user',
     content: [
@@ -83,7 +82,7 @@ export function constructVisionMessage(base64Image: string): VisionMessage {
 
 // Constants for API configuration
 export const OPENAI_CONFIG = {
-  MODEL: 'gpt-4o', // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+  MODEL: 'gpt-4-vision-preview', // Updated to the correct model name
   MAX_TOKENS: 100,
   TEMPERATURE: 0,
   RESPONSE_FORMAT: { type: 'json_object' as const }

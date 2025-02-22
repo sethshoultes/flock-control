@@ -12,6 +12,19 @@ import { useCountStore } from "@/lib/store";
 import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
+import crypto from 'crypto';
+
+interface CountsResponse {
+  counts: Count[];
+}
+
+interface AnalyzeResponse {
+  count: Count;
+  newAchievements?: Array<{
+    name: string;
+    description: string;
+  }>;
+}
 
 export default function Home() {
   const { toast } = useToast();
@@ -22,61 +35,59 @@ export default function Home() {
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
 
-  // Only fetch cloud data if user is authenticated
-  const { data: countsData } = useQuery({
+  const { data: countsData } = useQuery<CountsResponse>({
     queryKey: ["/api/counts"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/counts");
       return res.json();
     },
     enabled: !!user && isOnline,
-    onSuccess: (data) => {
+    onSuccess: (data: CountsResponse) => {
       if (data?.counts) {
         importCounts(data.counts);
       }
     },
   });
 
-  const analyzeMutation = useMutation({
+  const analyzeMutation = useMutation<
+    Array<AnalyzeResponse>,
+    Error,
+    string[]
+  >({
     mutationFn: async (images: string[]) => {
       setTotalImages(images.length);
       setProcessingCount(0);
 
-      // Process images with AI regardless of login status
       const results = await Promise.all(
-        images.map(async (image, index) => {
+        images.map(async (image) => {
           try {
             let count: Count;
 
             if (!user) {
-              // Guest mode - process locally but still use AI
               const response = await apiRequest("POST", "/api/analyze", { image });
               const data = await response.json();
               count = {
                 ...data.count,
-                id: crypto.randomUUID(), // Using Web Crypto API
-                userId: 0, // Guest user
+                id: crypto.randomUUID(),
+                userId: 0,
                 labels: [...(data.count.labels || []), "guest-mode"]
               };
             } else if (!isOnline) {
-              // Logged in but offline - queue for processing
               queueForUpload(image);
               throw new Error("You're offline. Images will be analyzed when you're back online.");
             } else {
-              // Online & logged in - process normally
               const response = await apiRequest("POST", "/api/analyze", { image });
               const data = await response.json();
               count = data.count;
             }
 
             setProcessingCount(prev => prev + 1);
-            return { count };
+            return { count, newAchievements: data?.newAchievements };
           } catch (error) {
             if (!user && error instanceof Error) {
-              // For guest mode, create a basic count if AI fails
               return {
                 count: {
-                  id: crypto.randomUUID(), // Using Web Crypto API
+                  id: crypto.randomUUID(),
                   count: 0,
                   imageUrl: image,
                   timestamp: new Date(),
@@ -99,19 +110,15 @@ export default function Home() {
         queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
         queryClient.invalidateQueries({ queryKey: ["/api/achievements"] });
 
-        // Show achievement notifications if any were earned
-        if (data.some(result => 'newAchievements' in result && result.newAchievements?.length > 0)) {
-          data.forEach(result => {
-            if (result.newAchievements) {
-              result.newAchievements.forEach(achievement => {
-                toast({
-                  title: "Achievement Unlocked! 🏆",
-                  description: `${achievement.name} - ${achievement.description}`,
-                });
-              });
-            }
+        const achievementsEarned = data.filter(result => result.newAchievements?.length > 0);
+        achievementsEarned.forEach(result => {
+          result.newAchievements?.forEach(achievement => {
+            toast({
+              title: "Achievement Unlocked! 🏆",
+              description: `${achievement.name} - ${achievement.description}`,
+            });
           });
-        }
+        });
       }
 
       data.forEach(result => addCount(result.count));
@@ -152,7 +159,6 @@ export default function Home() {
     analyzeMutation.mutate(base64Images);
   };
 
-  // Show nothing while tutorial state is loading to prevent flashing
   if (tutorialLoading) {
     return null;
   }
@@ -189,7 +195,6 @@ export default function Home() {
         </CardContent>
       </Card>
 
-      {/* Only show pending uploads for logged-in users */}
       {user && <PendingUploads />}
 
       <Card>

@@ -32,8 +32,9 @@ export const useAuth = create<AuthStore>()(
           const user = await res.json();
           set({ user, isLoading: false });
         } catch (error) {
-          set({ error: error.message, isLoading: false });
-          throw error;
+          const errorMessage = error instanceof Error ? error.message : 'Login failed';
+          set({ error: errorMessage, isLoading: false });
+          throw new Error(errorMessage);
         }
       },
 
@@ -44,8 +45,9 @@ export const useAuth = create<AuthStore>()(
           const user = await res.json();
           set({ user, isLoading: false });
         } catch (error) {
-          set({ error: error.message, isLoading: false });
-          throw error;
+          const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+          set({ error: errorMessage, isLoading: false });
+          throw new Error(errorMessage);
         }
       },
 
@@ -55,8 +57,9 @@ export const useAuth = create<AuthStore>()(
           await apiRequest('POST', '/api/logout');
           set({ user: null, isLoading: false });
         } catch (error) {
-          set({ error: error.message, isLoading: false });
-          throw error;
+          const errorMessage = error instanceof Error ? error.message : 'Logout failed';
+          set({ error: errorMessage, isLoading: false });
+          throw new Error(errorMessage);
         }
       },
 

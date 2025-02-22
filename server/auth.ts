@@ -2,7 +2,7 @@ import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { insertUserSchema, loginSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, type User } from "@shared/schema";
 import { storage } from "./storage";
 import { z } from "zod";
 
@@ -33,7 +33,7 @@ export function setupAuth(app: Express) {
   app.use(passport.session());
 
   // Configure Passport's Local Strategy
-  passport.use(new LocalStrategy(async (username, password, done) => {
+  passport.use(new LocalStrategy(async (username: string, password: string, done) => {
     try {
       const user = await storage.validateUser(username, password);
       if (!user) {
@@ -46,7 +46,7 @@ export function setupAuth(app: Express) {
   }));
 
   // Serialize user for the session
-  passport.serializeUser((user: any, done) => {
+  passport.serializeUser((user: User, done) => {
     done(null, user.id);
   });
 
@@ -60,7 +60,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Authentication routes
+  // Authentication routes remain the same
   app.post("/api/register", async (req, res) => {
     try {
       const data = insertUserSchema.parse(req.body);

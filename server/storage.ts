@@ -27,6 +27,17 @@ async function comparePasswords(supplied: string, stored: string) {
 
 const PostgresSessionStore = connectPg(session);
 
+interface IStorage {
+  sessionStore: session.Store;
+  createUser(insertUser: InsertUser): Promise<User>;
+  getUserById(id: number): Promise<User | null>;
+  getUserByUsername(username: string): Promise<User | null>;
+  validateUser(username: string, password: string): Promise<User | null>;
+  getCounts(userId: number): Promise<Count[]>;
+  addCount(userId: number, insertCount: InsertCount): Promise<Count>;
+  deleteCounts(userId: number, countIds: number[]): Promise<void>;
+}
+
 export class DatabaseStorage implements IStorage {
   readonly sessionStore: session.Store;
 
