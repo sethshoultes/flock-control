@@ -28,13 +28,7 @@ export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { 
-    isOnline, 
-    showTutorial,
-    tutorialLoading,
-    addCount,
-    completeTutorial
-  } = useAppStore();
+  const store = useAppStore();
 
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
@@ -77,7 +71,7 @@ export default function Home() {
     onSuccess: (data) => {
       data.forEach(result => {
         if (result.count) {
-          addCount(result.count);
+          store.addCount(result.count);
         }
       });
 
@@ -123,24 +117,24 @@ export default function Home() {
   };
 
   // Early return while tutorial state is loading
-  if (tutorialLoading) {
+  if (store.tutorialLoading) {
     return null;
   }
 
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
       {/* Only show tutorial modal if not in dev tools and showTutorial is true */}
-      {showTutorial && (
+      {store.showTutorial && (
         <TutorialModal
-          isOpen={showTutorial}
-          onClose={completeTutorial}
+          isOpen={store.showTutorial}
+          onClose={store.completeTutorial}
         />
       )}
 
       <Card>
         <CardHeader>
           <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Flock Counter {!user ? "(Guest Mode)" : (!isOnline ? "(Offline)" : "")}
+            Flock Counter {!user ? "(Guest Mode)" : (!store.isOnline ? "(Offline)" : "")}
           </CardTitle>
         </CardHeader>
         <CardContent>
