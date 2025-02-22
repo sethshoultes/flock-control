@@ -29,26 +29,13 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          facingMode: 'environment'
         } 
       });
 
-      if (mediaStream.getVideoTracks().length === 0) {
-        throw new Error("No video track available");
-      }
-
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        await new Promise<void>((resolve) => {
-          if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current!.play().then(() => resolve());
-            };
-          }
-        });
-
+        await videoRef.current.play();
         setStream(mediaStream);
         setIsCapturing(true);
       }
@@ -109,45 +96,36 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="min-h-[400px] space-y-4">
       {isCapturing ? (
         <div className="space-y-4">
-          <div className="relative w-full aspect-video bg-muted rounded-lg border overflow-hidden">
-            {stream && (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-contain z-10"
-                style={{ position: 'absolute', top: 0, left: 0 }}
-              />
-            )}
-            {!stream && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            )}
+          <div className="h-[300px] relative bg-black rounded-lg overflow-hidden">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full object-cover"
+            />
           </div>
-          <div className="flex gap-2 justify-center">
+          <div className="flex justify-center gap-4">
             <Button 
               onClick={captureImage}
-              className="flex-1 max-w-[200px]"
-              disabled={isLoading || !stream}
               size="lg"
+              disabled={isLoading}
             >
               {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
               ) : (
-                <Camera className="h-4 w-4 mr-2" />
+                <Camera className="h-5 w-5 mr-2" />
               )}
-              Capture Photo
+              Take Photo
             </Button>
             <Button
               variant="outline"
               onClick={stopCamera}
-              disabled={isLoading}
               size="lg"
+              disabled={isLoading}
             >
               Cancel
             </Button>
@@ -158,12 +136,13 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
           <Button 
             onClick={startCamera}
             className="w-full"
+            size="lg"
             disabled={isLoading || isCameraLoading}
           >
             {isCameraLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
             ) : (
-              <Camera className="h-4 w-4 mr-2" />
+              <Camera className="h-5 w-5 mr-2" />
             )}
             {isCameraLoading ? "Starting Camera..." : "Open Camera"}
           </Button>
@@ -181,9 +160,10 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
               className="w-full"
               disabled={isLoading}
               variant="outline"
+              size="lg"
             >
-              <label htmlFor="image-upload">
-                <Upload className="h-4 w-4 mr-2" />
+              <label htmlFor="image-upload" className="flex items-center justify-center">
+                <Upload className="h-5 w-5 mr-2" />
                 Upload Image
               </label>
             </Button>
