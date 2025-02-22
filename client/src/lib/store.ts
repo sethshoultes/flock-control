@@ -24,6 +24,8 @@ interface CountStore extends CountState {
   syncPendingUploads: () => Promise<void>;
   setOnline: (status: boolean) => void;
   removePendingUpload: (id: string) => void;
+  clearCounts: () => void;
+  importCounts: (counts: Count[]) => void;
 }
 
 export const useCountStore = create<CountStore>()(
@@ -77,12 +79,10 @@ export const useCountStore = create<CountStore>()(
                 });
                 const data = await response.json();
 
-                // Add the count and remove from pending
                 state.addCount(data.count);
                 state.removePendingUpload(upload.id);
                 return { success: true, count: data.count };
               } catch (error) {
-                // If upload fails, increment retry count
                 set((state) => ({
                   pendingUploads: state.pendingUploads.map(pending =>
                     pending.id === upload.id
@@ -109,9 +109,16 @@ export const useCountStore = create<CountStore>()(
       setOnline: (status) => {
         set({ isOnline: status });
         if (status) {
-          // Try to sync when we come back online
           get().syncPendingUploads();
         }
+      },
+
+      clearCounts: () => {
+        set({ counts: [], pendingUploads: [] });
+      },
+
+      importCounts: (counts) => {
+        set({ counts });
       },
     }),
     {

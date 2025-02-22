@@ -10,26 +10,37 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useCountStore } from "@/lib/store";
 import { useTutorial } from "@/hooks/use-tutorial";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isOnline, addCount, queueForUpload } = useCountStore();
+  const { user } = useAuth();
+  const { isOnline, addCount, queueForUpload, importCounts } = useCountStore();
   const { showTutorial, completeTutorial, isLoading: tutorialLoading } = useTutorial();
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
 
+  // Only fetch cloud data if user is authenticated
   const { data: countsData } = useQuery({
     queryKey: ["/api/counts"],
-    enabled: isOnline,
+    enabled: !!user && isOnline,
+    onSuccess: (data) => {
+      // Import cloud data into local store
+      if (data?.counts) {
+        importCounts(data.counts);
+      }
+    },
   });
 
   const analyzeMutation = useMutation({
     mutationFn: async (images: string[]) => {
-      if (!isOnline) {
+      if (!isOnline || !user) {
         images.forEach(image => queueForUpload(image));
         throw new Error(
-          "You're offline. Images will be analyzed when you're back online.",
+          !user 
+            ? "Guest mode: Images are stored locally" 
+            : "You're offline. Images will be analyzed when you're back online.",
         );
       }
 
@@ -47,7 +58,9 @@ export default function Home() {
       return results;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
+      if (user) {
+        queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
+      }
       data.forEach(result => addCount(result.count));
 
       const totalChickens = data.reduce((sum, result) => sum + result.count.count, 0);
@@ -61,7 +74,7 @@ export default function Home() {
     },
     onError: (error) => {
       toast({
-        title: isOnline ? "Error" : "Offline Mode",
+        title: !user ? "Guest Mode" : (isOnline ? "Error" : "Offline Mode"),
         description: error.message,
         variant: isOnline ? "destructive" : "default",
       });
