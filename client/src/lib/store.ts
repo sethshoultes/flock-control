@@ -40,6 +40,9 @@ interface PendingUpload {
   retryCount: number;
 }
 
+const TUTORIAL_KEY = 'chicken-counter-tutorial-shown';
+const STORAGE_KEY = 'chicken-counter-storage';
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -49,14 +52,14 @@ export const useAppStore = create<AppState>()(
       isOnline: true,
       isSyncing: false,
 
-      // Tutorial state
-      showTutorial: false,
-      tutorialLoading: true,
+      // Tutorial state - always starts as true until explicitly marked as seen
+      showTutorial: true,
+      tutorialLoading: false,
 
       // Initialize tutorial state
       initializeTutorial: async () => {
         try {
-          const hasSeenTutorial = await get<boolean>('chicken-counter-tutorial-shown');
+          const hasSeenTutorial = await get(TUTORIAL_KEY);
           set({ 
             showTutorial: !hasSeenTutorial,
             tutorialLoading: false 
@@ -70,7 +73,7 @@ export const useAppStore = create<AppState>()(
       // Complete tutorial
       completeTutorial: async () => {
         try {
-          await set('chicken-counter-tutorial-shown', true);
+          await set(TUTORIAL_KEY, true);
           set({ showTutorial: false });
         } catch (error) {
           console.error('Failed to save tutorial completion:', error);
@@ -80,7 +83,7 @@ export const useAppStore = create<AppState>()(
       // Reset tutorial
       resetTutorial: async () => {
         try {
-          await set('chicken-counter-tutorial-shown', false);
+          await set(TUTORIAL_KEY, false);
           set({ showTutorial: true });
         } catch (error) {
           console.error('Failed to reset tutorial:', error);
@@ -144,6 +147,7 @@ export const useAppStore = create<AppState>()(
                 }
                 return { success: false, error: new Error('No count data received') };
               } catch (error) {
+                console.error('Upload error:', error);
                 set((state) => ({
                   pendingUploads: state.pendingUploads.map(pending =>
                     pending.id === upload.id
@@ -208,12 +212,12 @@ export const useAppStore = create<AppState>()(
       },
     }),
     {
-      name: 'chicken-counter-storage',
+      name: STORAGE_KEY,
       storage: {
         getItem: async (name) => {
           try {
             const value = await get(name);
-            console.log('Retrieved from storage:', { name, hasValue: value !== undefined });
+            console.log('Retrieved from storage:', { name, value });
             return value;
           } catch (error) {
             console.error('Failed to load from IndexedDB:', error);
@@ -223,7 +227,7 @@ export const useAppStore = create<AppState>()(
         setItem: async (name, value) => {
           try {
             await set(name, value);
-            console.log('Saved to storage:', { name });
+            console.log('Saved to storage:', { name, value });
           } catch (error) {
             console.error('Failed to save to IndexedDB:', error);
           }
@@ -248,9 +252,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('online', checkConnectivity);
   window.addEventListener('offline', checkConnectivity);
 
-  // Initial connectivity check
+  // Initial connectivity check and tutorial state
   checkConnectivity();
-
-  // Initialize tutorial state
   useAppStore.getState().initializeTutorial();
 }

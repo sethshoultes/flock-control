@@ -5,13 +5,12 @@ import { useAppStore } from "@/lib/store";
 export function DevTools() {
   const { isOnline, setOnline, resetTutorial } = useAppStore();
 
-  // Only show in development
-  if (import.meta.env.PROD) {
-    return null;
-  }
-
   const handleResetTutorial = () => {
     resetTutorial().catch(console.error);
+  };
+
+  const handleToggleOnline = () => {
+    setOnline(!isOnline);
   };
 
   return (
@@ -29,7 +28,7 @@ export function DevTools() {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setOnline(!isOnline)}
+        onClick={handleToggleOnline}
         className={isOnline ? "bg-green-100" : "bg-orange-100"}
       >
         {isOnline ? (
