@@ -32,7 +32,7 @@ export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { connection, addCount, queueForUpload, importCounts, setOnline } = useCountStore();
+  const { connection, addCount, queueForUpload, importCounts, setTestMode } = useCountStore();
   const { showTutorial, completeTutorial, isLoading: tutorialLoading } = useTutorial();
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
@@ -170,21 +170,9 @@ export default function Home() {
     analyzeMutation.mutate(base64Images);
   };
 
-  // Add handler for testing offline mode
+  // Updated offline mode test handler
   const handleTestOffline = () => {
-    if (connection.isOnline) {
-      useCountStore.setState(state => ({
-        connection: {
-          ...state.connection,
-          isOnline: false,
-          isDatabaseConnected: false,
-          lastError: "Testing offline mode"
-        }
-      }));
-    } else {
-      // Restore online state and check actual connectivity
-      setOnline(true);
-    }
+    setTestMode(!connection.isTestingOffline);
   };
 
   if (tutorialLoading) {
@@ -203,9 +191,11 @@ export default function Home() {
           <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent flex items-center justify-center gap-2">
             Flock Counter
             {!connection.isOnline ? (
-              <div className="flex items-center gap-1 text-destructive" title="You are offline">
+              <div className="flex items-center gap-1 text-destructive" title={connection.isTestingOffline ? "Testing offline mode" : "You are offline"}>
                 <WifiOff className="w-6 h-6" />
-                <span className="text-sm font-normal">(Offline)</span>
+                <span className="text-sm font-normal">
+                  ({connection.isTestingOffline ? "Test Mode" : "Offline"})
+                </span>
               </div>
             ) : !connection.isDatabaseConnected ? (
               <div className="flex items-center gap-1 text-destructive" title={connection.lastError || "Database disconnected"}>
@@ -239,7 +229,9 @@ export default function Home() {
                 onClick={handleTestOffline}
                 className="w-full"
               >
-                {connection.isOnline ? "Test Offline Mode" : "Restore Online Mode"}
+                {connection.isTestingOffline
+                  ? "Exit Test Mode"
+                  : "Test Offline Mode"}
               </Button>
             </div>
           )}

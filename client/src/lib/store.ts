@@ -7,8 +7,8 @@ import { toast } from '@/hooks/use-toast';
 
 interface PendingUpload {
   id: string;
-  image: string;
   timestamp: Date;
+  image: string;
   retryCount: number;
 }
 
@@ -31,6 +31,7 @@ interface CountStore extends CountState {
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
   setOnline: (status: boolean) => void;
+  setTestMode: (enabled: boolean) => void;
   removePendingUpload: (id: string) => void;
   clearCounts: () => void;
   importCounts: (counts: Count[]) => void;
@@ -46,8 +47,130 @@ export const useCountStore = create<CountStore>()(
       connection: {
         isOnline: true,
         isDatabaseConnected: true,
+        isTestingOffline: false
       },
       isSyncing: false,
+
+      setTestMode: (enabled: boolean) => {
+        if (enabled) {
+          // Enable test mode and force offline state
+          set(state => ({
+            connection: {
+              ...state.connection,
+              isOnline: false,
+              isDatabaseConnected: false,
+              isTestingOffline: true,
+              lastError: "Testing offline mode"
+            }
+          }));
+          toast({
+            title: "Test Mode Enabled",
+            description: "Application is now in offline test mode. All data will be stored locally.",
+          });
+        } else {
+          // Disable test mode and check real connection
+          set(state => ({
+            connection: {
+              ...state.connection,
+              isTestingOffline: false
+            }
+          }));
+          get().setOnline(true);
+          toast({
+            title: "Test Mode Disabled",
+            description: "Checking real connection status...",
+          });
+        }
+      },
+
+      setOnline: async (status) => {
+        const state = get();
+        console.log('Checking connection status:', status);
+
+        // If we're in test mode, don't perform real connection checks
+        if (state.connection.isTestingOffline) {
+          console.log('In test mode, skipping connection check');
+          return;
+        }
+
+        if (status) {
+          try {
+            console.log('Fetching health check...');
+            const response = await fetch('/api/health', {
+              signal: AbortSignal.timeout(5000)
+            });
+            const data = await response.json();
+            console.log('Health check response:', data);
+
+            const isConnected = response.ok;
+            const isDatabaseConnected = data.database === 'connected';
+
+            console.log('Connection state:', { isConnected, isDatabaseConnected, error: data.error });
+
+            set((state) => ({
+              connection: {
+                ...state.connection,
+                isOnline: isConnected,
+                isDatabaseConnected,
+                lastError: isDatabaseConnected ? undefined : data.error
+              }
+            }));
+
+            if (!isConnected) {
+              toast({
+                title: "Connection Lost",
+                description: "You are currently offline. Changes will be saved locally.",
+                variant: "destructive"
+              });
+            } else if (!isDatabaseConnected) {
+              toast({
+                title: "Database Disconnected",
+                description: data.error || "Unable to connect to the database. Your data will be saved locally.",
+                variant: "destructive"
+              });
+            } else {
+              const state = get();
+              if (state.pendingUploads.length > 0) {
+                toast({
+                  title: "Connection Restored",
+                  description: `Syncing ${state.pendingUploads.length} pending uploads...`
+                });
+                state.syncPendingUploads();
+              }
+            }
+          } catch (error) {
+            console.error('Connection check failed:', error);
+            if (error instanceof TypeError && error.message.includes('fetch')) {
+              set((state) => ({
+                connection: {
+                  ...state.connection,
+                  isOnline: false,
+                  isDatabaseConnected: false,
+                  lastError: 'Network connection failed'
+                }
+              }));
+            } else {
+              set((state) => ({
+                connection: {
+                  ...state.connection,
+                  isOnline: true,
+                  isDatabaseConnected: false,
+                  lastError: error instanceof Error ? error.message : 'Unknown error'
+                }
+              }));
+            }
+          }
+        } else {
+          console.log('Browser reported offline');
+          set((state) => ({
+            connection: {
+              ...state.connection,
+              isOnline: false,
+              isDatabaseConnected: false
+            }
+          }));
+        }
+      },
 
       addCount: (count) => {
         set((state) => ({
@@ -137,98 +260,6 @@ export const useCountStore = create<CountStore>()(
           }
         } finally {
           set({ isSyncing: false });
-        }
-      },
-
-      setOnline: async (status) => {
-        const state = get();
-        console.log('Checking connection status:', status);
-
-        // If we're in test mode and trying to stay offline, don't perform the check
-        if (state.connection.isTestingOffline && !status) {
-          return;
-        }
-
-        if (status) {
-          try {
-            console.log('Fetching health check...');
-            const response = await fetch('/api/health', {
-              signal: AbortSignal.timeout(5000)
-            });
-            const data = await response.json();
-            console.log('Health check response:', data);
-
-            const isConnected = response.ok;
-            const isDatabaseConnected = data.database === 'connected';
-
-            console.log('Connection state:', { isConnected, isDatabaseConnected, error: data.error });
-
-            set((state) => ({
-              connection: {
-                ...state.connection,
-                isOnline: isConnected,
-                isDatabaseConnected,
-                lastError: isDatabaseConnected ? undefined : data.error,
-                isTestingOffline: false // Clear test mode when connection is restored
-              }
-            }));
-
-            if (!isConnected) {
-              toast({
-                title: "Connection Lost",
-                description: "You are currently offline. Changes will be saved locally.",
-                variant: "destructive"
-              });
-            } else if (!isDatabaseConnected) {
-              toast({
-                title: "Database Disconnected",
-                description: data.error || "Unable to connect to the database. Your data will be saved locally.",
-                variant: "destructive"
-              });
-            } else {
-              const state = get();
-              if (state.pendingUploads.length > 0) {
-                toast({
-                  title: "Connection Restored",
-                  description: `Syncing ${state.pendingUploads.length} pending uploads...`
-                });
-                state.syncPendingUploads();
-              }
-            }
-          } catch (error) {
-            console.error('Connection check failed:', error);
-            if (error instanceof TypeError && error.message.includes('fetch')) {
-              set((state) => ({
-                connection: {
-                  ...state.connection,
-                  isOnline: false,
-                  isDatabaseConnected: false,
-                  lastError: 'Network connection failed',
-                  isTestingOffline: false
-                }
-              }));
-            } else {
-              set((state) => ({
-                connection: {
-                  ...state.connection,
-                  isOnline: true,
-                  isDatabaseConnected: false,
-                  lastError: error instanceof Error ? error.message : 'Unknown error',
-                  isTestingOffline: false
-                }
-              }));
-            }
-          }
-        } else {
-          console.log('Browser reported offline');
-          set((state) => ({
-            connection: {
-              ...state.connection,
-              isOnline: false,
-              isDatabaseConnected: false,
-              isTestingOffline: state.connection.isTestingOffline // Preserve test mode status
-            }
-          }));
         }
       },
 
