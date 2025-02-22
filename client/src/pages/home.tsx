@@ -13,7 +13,7 @@ export default function Home() {
   const { isOnline, addCount, queueForUpload } = useCountStore();
 
   const { data: countsData } = useQuery({
-    queryKey: ['/api/counts'],
+    queryKey: ["/api/counts"],
     enabled: isOnline, // Only fetch when online
   });
 
@@ -22,13 +22,15 @@ export default function Home() {
       if (!isOnline) {
         // If offline, queue for later and show message
         queueForUpload(image);
-        throw new Error("You're offline. Image will be analyzed when you're back online.");
+        throw new Error(
+          "You're offline. Image will be analyzed when you're back online.",
+        );
       }
-      const response = await apiRequest('POST', '/api/analyze', { image });
+      const response = await apiRequest("POST", "/api/analyze", { image });
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/counts'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
       addCount(data.count);
       toast({
         title: "Success",
@@ -39,7 +41,7 @@ export default function Home() {
       toast({
         title: isOnline ? "Error" : "Offline Mode",
         description: error.message,
-        variant: isOnline ? "destructive" : "default"
+        variant: isOnline ? "destructive" : "default",
       });
     },
   });
@@ -53,11 +55,11 @@ export default function Home() {
       <Card>
         <CardHeader>
           <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Chicken Counter {!isOnline && "(Offline)"}
+            Flock Counter {!isOnline && "(Offline)"}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <CameraUpload 
+          <CameraUpload
             onImageCapture={handleImageCapture}
             isLoading={analyzeMutation.isPending}
           />

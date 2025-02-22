@@ -12,8 +12,11 @@ interface CountHistoryProps {
 export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
   const { counts: localCounts, isOnline } = useCountStore();
 
-  // Combine and sort counts from both sources
-  const allCounts = [...localCounts, ...serverCounts]
+  // Combine and deduplicate counts from both sources
+  const allCounts = Array.from(new Map(
+    [...localCounts, ...serverCounts]
+      .map(count => [count.id, count]) // Use id as the key for deduplication
+  ).values())
     .sort((a, b) => {
       // Convert string timestamps to Date objects
       const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
