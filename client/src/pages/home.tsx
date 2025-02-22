@@ -5,22 +5,31 @@ import { CountHistory } from "@/components/count-history";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useCountStore } from "@/lib/store";
 
 export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+  const { isOnline, addCount, queueForUpload } = useCountStore();
+
   const { data: countsData } = useQuery({
     queryKey: ['/api/counts'],
+    enabled: isOnline, // Only fetch when online
   });
 
   const analyzeMutation = useMutation({
     mutationFn: async (image: string) => {
+      if (!isOnline) {
+        // If offline, queue for later and show message
+        queueForUpload(image);
+        throw new Error("You're offline. Image will be analyzed when you're back online.");
+      }
       const response = await apiRequest('POST', '/api/analyze', { image });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/counts'] });
+      addCount(data.count);
       toast({
         title: "Success",
         description: "Image analyzed successfully",
@@ -28,9 +37,9 @@ export default function Home() {
     },
     onError: (error) => {
       toast({
-        title: "Error",
+        title: isOnline ? "Error" : "Offline Mode",
         description: error.message,
-        variant: "destructive",
+        variant: isOnline ? "destructive" : "default"
       });
     },
   });
@@ -44,7 +53,7 @@ export default function Home() {
       <Card>
         <CardHeader>
           <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Chicken Counter
+            Chicken Counter {!isOnline && "(Offline)"}
           </CardTitle>
         </CardHeader>
         <CardContent>
