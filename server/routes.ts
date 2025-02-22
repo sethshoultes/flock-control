@@ -13,23 +13,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { image } = req.body;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+        model: "gpt-4o", 
         messages: [
           {
             role: "user",
             content: [
               { 
                 type: "text", 
-                text: `Analyze this image of chickens and provide:
-                1. Total count of chickens
+                text: `Analyze this image of chickens and provide detailed information:
+
+                1. Total count of chickens in the image
                 2. Primary breed identification with confidence level (1-100)
-                3. Notable characteristics or labels (e.g., 'healthy', 'free-range', 'young')
+                3. If multiple breeds are present, list all identified breeds
+                4. Age classification for the group (chicks/juveniles/adults)
+                5. Health assessment including:
+                   - Overall condition (healthy/concerning/needs attention)
+                   - Any visible health indicators
+                6. Environmental observations (free-range/caged/indoor/outdoor)
+                7. Additional characteristics or notable features
 
                 Respond with a JSON object in this format:
                 {
                   "count": number,
                   "breed": string,
+                  "additionalBreeds": string[] | null,
                   "confidence": number,
+                  "ageGroup": string,
+                  "healthStatus": string,
                   "labels": string[]
                 }`
               },
@@ -56,6 +66,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           typeof result.confidence !== 'number' ||
           !Array.isArray(result.labels)) {
         throw new Error("Invalid response format from OpenAI");
+      }
+
+      // Add additional breed information to labels if present
+      if (result.additionalBreeds?.length) {
+        result.labels.push(...result.additionalBreeds.map(breed => `additional-breed:${breed}`));
+      }
+
+      // Add age group to labels
+      if (result.ageGroup) {
+        result.labels.push(`age:${result.ageGroup}`);
+      }
+
+      // Add health status to labels
+      if (result.healthStatus) {
+        result.labels.push(`health:${result.healthStatus}`);
       }
 
       const countRecord = await storage.addCount({
