@@ -47,7 +47,7 @@ export default function Home() {
         return images.map((image) => ({
           count: {
             id: crypto.randomUUID(),
-            count: 0, // User will need to count manually in guest mode
+            count: 0,
             imageUrl: image,
             timestamp: new Date(),
             userId: 0, // Guest user

@@ -38,7 +38,18 @@ export const insertCountSchema = createInsertSchema(counts).pick({
   labels: true,
 });
 
+// Custom type for Count that allows string IDs for guest mode
+export type Count = {
+  id: number | string;
+  userId: number;
+  count: number;
+  imageUrl: string | null;
+  timestamp: Date | null;
+  breed: string | null;
+  confidence: number | null;
+  labels: string[] | null;
+};
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertCount = z.infer<typeof insertCountSchema>;
-export type Count = typeof counts.$inferSelect;
 export type User = typeof users.$inferSelect;

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { get, set } from 'idb-keyval';
-import type { Count, InsertCount } from '@shared/schema';
+import type { Count } from '@shared/schema';
 import { apiRequest } from './queryClient';
 
 interface PendingUpload {
@@ -26,7 +26,7 @@ interface CountStore extends CountState {
   removePendingUpload: (id: string) => void;
   clearCounts: () => void;
   importCounts: (counts: Count[]) => void;
-  updateCount: (id: string, updates: Partial<Count>) => void;
+  updateCount: (id: string | number, updates: Partial<Count>) => void;
 }
 
 export const useCountStore = create<CountStore>()(
@@ -43,10 +43,10 @@ export const useCountStore = create<CountStore>()(
         }));
       },
 
-      updateCount: (id: string, updates: Partial<Count>) => {
+      updateCount: (id, updates) => {
         set((state) => ({
           counts: state.counts.map(count => 
-            count.id === id ? { ...count, ...updates } : count
+            count.id.toString() === id.toString() ? { ...count, ...updates } : count
           )
         }));
       },
