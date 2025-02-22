@@ -67,122 +67,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Processing image analysis request for user ${userId} (authenticated: ${isAuthenticated})`);
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Analyze this image of chickens and provide detailed information:
-
-                1. Total count of chickens in the image
-                2. Primary breed identification with confidence level (1-100)
-                3. If multiple breeds are present, list all identified breeds
-                4. Age classification for the group (chicks/juveniles/adults)
-                5. Health assessment including:
-                   - Overall condition (healthy/concerning/needs attention)
-                   - Any visible health indicators
-                6. Environmental observations (free-range/caged/indoor/outdoor)
-                7. Additional characteristics or notable features
-
-                Respond with a JSON object in this format:
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4-vision-preview", // Fixed model name
+          messages: [
+            {
+              role: "user",
+              content: [
                 {
-                  "count": number,
-                  "breed": string,
-                  "additionalBreeds": string[] | null,
-                  "confidence": number,
-                  "ageGroup": string,
-                  "healthStatus": string,
-                  "labels": string[]
-                }`
-              },
-              {
-                type: "image_url",
-                image_url: { url: image }
-              }
-            ]
+                  type: "text",
+                  text: `Analyze this image of chickens and provide detailed information:
+
+                  1. Total count of chickens in the image
+                  2. Primary breed identification with confidence level (1-100)
+                  3. If multiple breeds are present, list all identified breeds
+                  4. Age classification for the group (chicks/juveniles/adults)
+                  5. Health assessment including:
+                     - Overall condition (healthy/concerning/needs attention)
+                     - Any visible health indicators
+                  6. Environmental observations (free-range/caged/indoor/outdoor)
+                  7. Additional characteristics or notable features
+
+                  Respond with a JSON object in this format:
+                  {
+                    "count": number,
+                    "breed": string,
+                    "additionalBreeds": string[] | null,
+                    "confidence": number,
+                    "ageGroup": string,
+                    "healthStatus": string,
+                    "labels": string[]
+                  }`
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: image }
+                }
+              ]
+            }
+          ],
+          max_tokens: 4096,
+          response_format: { type: "json_object" }
+        });
+
+        const content = response.choices[0].message.content;
+        if (!content) {
+          throw new Error("No response from OpenAI");
+        }
+
+        const result = JSON.parse(content);
+
+        // Validate all required fields are present
+        if (typeof result.count !== 'number' ||
+          typeof result.breed !== 'string' ||
+          typeof result.confidence !== 'number' ||
+          !Array.isArray(result.labels)) {
+          throw new Error("Invalid response format from OpenAI");
+        }
+
+        // Process the count for database storage
+        let count;
+        if (isAuthenticated) {
+          try {
+            count = await storage.addCount(userId, {
+              count: result.count,
+              imageUrl: image,
+              breed: result.breed,
+              confidence: result.confidence,
+              labels: result.labels,
+              userId: userId
+            });
+
+            const newAchievements = await achievementService.checkAchievements(userId);
+            res.json({ count, newAchievements });
+          } catch (error) {
+            console.error('Error saving count to database:', error);
+            throw error;
           }
-        ],
-        response_format: { type: "json_object" }
-      });
-
-      const content = response.choices[0].message.content;
-      if (!content) {
-        throw new Error("No response from OpenAI");
-      }
-
-      const result = JSON.parse(content);
-
-      // Validate all required fields are present
-      if (typeof result.count !== 'number' ||
-        typeof result.breed !== 'string' ||
-        typeof result.confidence !== 'number' ||
-        !Array.isArray(result.labels)) {
-        throw new Error("Invalid response format from OpenAI");
-      }
-
-      // Add additional breed information to labels if present
-      if (result.additionalBreeds?.length) {
-        result.labels.push(...result.additionalBreeds.map(breed => `additional-breed:${breed}`));
-      }
-
-      // Add age group to labels
-      if (result.ageGroup) {
-        result.labels.push(`age:${result.ageGroup}`);
-      }
-
-      // Add health status to labels
-      if (result.healthStatus) {
-        result.labels.push(`health:${result.healthStatus}`);
-      }
-
-      let count;
-
-      // Only store in database if user is authenticated
-      if (isAuthenticated) {
-        console.log('Saving count to database for authenticated user');
-        try {
-          count = await storage.addCount(userId, {
+        } else {
+          // Guest mode response
+          count = {
+            id: crypto.randomUUID(),
+            userId: 0,
             count: result.count,
             imageUrl: image,
+            timestamp: new Date(),
             breed: result.breed,
             confidence: result.confidence,
-            labels: result.labels,
-            userId: userId
-          });
-          console.log('Successfully saved count:', count.id);
-
-          console.log('Checking achievements after new count');
-          const newAchievements = await achievementService.checkAchievements(userId);
-          if (newAchievements.length > 0) {
-            console.log('User earned new achievements:', newAchievements.map(a => a.name));
-          }
-          res.json({ count, newAchievements });
-        } catch (error) {
-          console.error('Error saving count to database:', error);
-          throw error;
+            labels: [...result.labels, "guest-mode"]
+          };
+          res.json({ count });
         }
-      } else {
-        // For guest users, create a count object without storing in database
-        console.log('Creating guest mode count object');
-        count = {
-          id: crypto.randomUUID(),
-          userId: 0,
-          count: result.count,
-          imageUrl: image,
-          timestamp: new Date(),
-          breed: result.breed,
-          confidence: result.confidence,
-          labels: [...result.labels, "guest-mode"]
-        };
-        res.json({ count });
+      } catch (error) {
+        console.error('OpenAI API Error:', error);
+        res.status(500).json({ 
+          error: "Failed to analyze image",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
       }
     } catch (error) {
       console.error('Error in /api/analyze:', error);
-      const message = error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({ error: message });
+      res.status(500).json({ 
+        error: "Server error",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -196,7 +184,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching counts:', error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
-      // Send a more detailed error response
       res.status(500).json({ 
         error: message,
         type: error instanceof Error ? error.constructor.name : 'Unknown',
@@ -205,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Added achievement route
+  // Setup achievements route
   app.get("/api/achievements", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
