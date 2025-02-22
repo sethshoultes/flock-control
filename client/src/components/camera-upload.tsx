@@ -25,15 +25,35 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
 
   const startCamera = async () => {
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera API is not supported in this browser");
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: {
+          facingMode: 'environment'
+        }
       });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        setStream(mediaStream);
-        setIsCapturing(true);
-      }
+      if (!videoRef.current) return;
+
+      videoRef.current.srcObject = mediaStream;
+
+      // Wait for the video to be properly initialized
+      await new Promise<void>((resolve, reject) => {
+        if (!videoRef.current) return reject();
+
+        videoRef.current.onloadedmetadata = () => {
+          if (!videoRef.current) return reject();
+          videoRef.current.play()
+            .then(() => resolve())
+            .catch(reject);
+        };
+      });
+
+      setStream(mediaStream);
+      setIsCapturing(true);
+
     } catch (error) {
       console.error("Camera error:", error);
       toast({
@@ -48,6 +68,9 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setIsCapturing(false);
   };
