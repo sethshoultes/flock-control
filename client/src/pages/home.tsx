@@ -153,7 +153,7 @@ export default function Home() {
     },
     onError: (error) => {
       toast({
-        title: !user ? "Guest Mode" : (isOnline ? "Oops!" : "Offline Mode"),
+        title: !user ? "Guest Mode" : (isOnline ? "Error" : "Offline Mode"),
         description: error instanceof Error ? error.message : "An unknown error occurred",
         variant: isOnline ? "destructive" : "default",
       });
