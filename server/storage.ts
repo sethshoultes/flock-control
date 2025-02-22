@@ -79,10 +79,17 @@ export class DatabaseStorage implements IStorage {
 
   async validateUser(username: string, password: string): Promise<User | null> {
     const user = await this.getUserByUsername(username);
-    if (!user || !(await comparePasswords(password, user.password))) {
+    if (!user) {
       return null;
     }
-    return user;
+
+    try {
+      const isValid = await comparePasswords(password, user.password);
+      return isValid ? user : null;
+    } catch (error) {
+      console.error('Password validation error:', error);
+      return null;
+    }
   }
 
   async getCounts(userId: number): Promise<Count[]> {
