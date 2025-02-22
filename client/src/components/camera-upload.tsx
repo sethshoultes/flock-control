@@ -15,6 +15,22 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   const { toast } = useToast();
   const [stream, setStream] = useState<MediaStream | null>(null);
 
+  // Handle video element initialization
+  useEffect(() => {
+    if (isCapturing && videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(error => {
+        console.error("Error playing video:", error);
+        toast({
+          title: "Camera Error",
+          description: "Failed to start video preview",
+          variant: "destructive"
+        });
+      });
+    }
+  }, [isCapturing, stream, toast]);
+
+  // Cleanup effect
   useEffect(() => {
     return () => {
       if (stream) {
@@ -24,20 +40,11 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   }, [stream]);
 
   const startCamera = async () => {
-    console.log('Starting camera initialization...');
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      console.error('getUserMedia not supported');
-      toast({
-        title: "Browser Error",
-        description: "Camera API is not supported in this browser",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
-      console.log('Requesting camera access...');
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera API is not supported in this browser");
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
@@ -45,45 +52,9 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
           height: { ideal: 720 }
         }
       });
-      console.log('Camera access granted');
-
-      if (!videoRef.current) {
-        console.error('Video element not found');
-        return;
-      }
-
-      videoRef.current.srcObject = mediaStream;
-      console.log('Set video source');
-
-      // Create a promise that resolves when the video can play
-      await new Promise<void>((resolve, reject) => {
-        if (!videoRef.current) return reject('No video element');
-
-        videoRef.current.onloadedmetadata = () => {
-          console.log('Video metadata loaded');
-          if (!videoRef.current) return reject('No video element after metadata load');
-
-          videoRef.current.onloadeddata = () => {
-            console.log('Video data loaded, starting playback');
-            videoRef.current?.play()
-              .then(() => {
-                console.log('Video playback started');
-                resolve();
-              })
-              .catch(error => {
-                console.error('Video playback failed:', error);
-                reject(error);
-              });
-          };
-        };
-
-        // Add timeout
-        setTimeout(() => reject('Video initialization timed out'), 10000);
-      });
 
       setStream(mediaStream);
       setIsCapturing(true);
-      console.log('Camera setup complete');
 
     } catch (error) {
       console.error("Camera error:", error);
@@ -98,9 +69,6 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   const stopCamera = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
     }
     setStream(null);
     setIsCapturing(false);
