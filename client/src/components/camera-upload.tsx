@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Camera } from "lucide-react";
+import { Camera, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CameraUploadProps {
@@ -11,6 +11,7 @@ interface CameraUploadProps {
 export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   const [isCapturing, setIsCapturing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Handle camera initialization after video element exists
@@ -83,6 +84,47 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
     onImageCapture(imageData);
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 10MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result;
+      if (typeof result === 'string') {
+        onImageCapture(result);
+      }
+    };
+    reader.onerror = () => {
+      toast({
+        title: "Error",
+        description: "Failed to read the image file",
+        variant: "destructive"
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="relative min-h-[400px] bg-black rounded-lg overflow-hidden">
       {isCapturing ? (
@@ -107,7 +149,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
           </div>
         </>
       ) : (
-        <div className="h-full flex items-center justify-center">
+        <div className="h-full flex flex-col items-center justify-center space-y-4">
           <Button
             onClick={startCamera}
             disabled={isLoading}
@@ -117,6 +159,24 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
           >
             <Camera className="h-6 w-6 mr-2" />
             Start Camera
+          </Button>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            variant="outline"
+            size="lg"
+            className="bg-white hover:bg-gray-100"
+          >
+            <Upload className="h-6 w-6 mr-2" />
+            Upload Image
           </Button>
         </div>
       )}
