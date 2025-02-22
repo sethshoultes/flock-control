@@ -129,11 +129,12 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 justify-center">
             <Button 
               onClick={captureImage}
-              className="flex-1"
+              className="flex-1 max-w-[200px]"
               disabled={isLoading || !stream}
+              size="lg"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -146,6 +147,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
               variant="outline"
               onClick={stopCamera}
               disabled={isLoading}
+              size="lg"
             >
               Cancel
             </Button>
