@@ -16,6 +16,7 @@ interface ConnectionState {
   isOnline: boolean;
   isDatabaseConnected: boolean;
   lastError?: string;
+  isTestingOffline?: boolean;
 }
 
 interface CountState {
@@ -140,23 +141,38 @@ export const useCountStore = create<CountStore>()(
       },
 
       setOnline: async (status) => {
+        const state = get();
+        console.log('Checking connection status:', status);
+
+        // If we're in test mode and trying to stay offline, don't perform the check
+        if (state.connection.isTestingOffline && !status) {
+          return;
+        }
+
         if (status) {
           try {
-            const response = await fetch('/api/health');
+            console.log('Fetching health check...');
+            const response = await fetch('/api/health', {
+              signal: AbortSignal.timeout(5000)
+            });
             const data = await response.json();
+            console.log('Health check response:', data);
+
             const isConnected = response.ok;
             const isDatabaseConnected = data.database === 'connected';
+
+            console.log('Connection state:', { isConnected, isDatabaseConnected, error: data.error });
 
             set((state) => ({
               connection: {
                 ...state.connection,
                 isOnline: isConnected,
                 isDatabaseConnected,
-                lastError: isDatabaseConnected ? undefined : data.error
+                lastError: isDatabaseConnected ? undefined : data.error,
+                isTestingOffline: false // Clear test mode when connection is restored
               }
             }));
 
-            // Show appropriate toast messages
             if (!isConnected) {
               toast({
                 title: "Connection Lost",
@@ -181,21 +197,36 @@ export const useCountStore = create<CountStore>()(
             }
           } catch (error) {
             console.error('Connection check failed:', error);
-            set((state) => ({
-              connection: {
-                ...state.connection,
-                isOnline: false,
-                isDatabaseConnected: false,
-                lastError: error instanceof Error ? error.message : 'Unknown error'
-              }
-            }));
+            if (error instanceof TypeError && error.message.includes('fetch')) {
+              set((state) => ({
+                connection: {
+                  ...state.connection,
+                  isOnline: false,
+                  isDatabaseConnected: false,
+                  lastError: 'Network connection failed',
+                  isTestingOffline: false
+                }
+              }));
+            } else {
+              set((state) => ({
+                connection: {
+                  ...state.connection,
+                  isOnline: true,
+                  isDatabaseConnected: false,
+                  lastError: error instanceof Error ? error.message : 'Unknown error',
+                  isTestingOffline: false
+                }
+              }));
+            }
           }
         } else {
+          console.log('Browser reported offline');
           set((state) => ({
             connection: {
               ...state.connection,
               isOnline: false,
-              isDatabaseConnected: false
+              isDatabaseConnected: false,
+              isTestingOffline: state.connection.isTestingOffline // Preserve test mode status
             }
           }));
         }
@@ -245,12 +276,10 @@ export const useCountStore = create<CountStore>()(
   )
 );
 
-// Set up online/offline listeners with actual connectivity check
 if (typeof window !== 'undefined') {
   const checkConnectivity = () => useCountStore.getState().setOnline(navigator.onLine);
   window.addEventListener('online', checkConnectivity);
   window.addEventListener('offline', checkConnectivity);
 
-  // Initial connectivity check
   checkConnectivity();
 }

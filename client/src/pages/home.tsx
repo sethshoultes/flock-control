@@ -6,6 +6,7 @@ import { PendingUploads } from "@/components/pending-uploads";
 import { ChickenLoader } from "@/components/chicken-loader";
 import { TutorialModal } from "@/components/tutorial-modal";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useCountStore } from "@/lib/store";
@@ -31,7 +32,7 @@ export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { connection, addCount, queueForUpload, importCounts } = useCountStore();
+  const { connection, addCount, queueForUpload, importCounts, setOnline } = useCountStore();
   const { showTutorial, completeTutorial, isLoading: tutorialLoading } = useTutorial();
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
@@ -73,9 +74,9 @@ export default function Home() {
             } else if (!connection.isOnline || !connection.isDatabaseConnected) {
               // Offline/Disconnected mode
               queueForUpload(image);
-              throw new Error(connection.lastError || 
+              throw new Error(connection.lastError ||
                 (!connection.isOnline ? "You're offline. Images will be analyzed when you're back online." :
-                "Database is disconnected. Images will be analyzed when connection is restored."));
+                  "Database is disconnected. Images will be analyzed when connection is restored."));
             } else {
               // Online & authenticated
               const response = await apiRequest("POST", "/api/analyze", { image });
@@ -169,6 +170,23 @@ export default function Home() {
     analyzeMutation.mutate(base64Images);
   };
 
+  // Add handler for testing offline mode
+  const handleTestOffline = () => {
+    if (connection.isOnline) {
+      useCountStore.setState(state => ({
+        connection: {
+          ...state.connection,
+          isOnline: false,
+          isDatabaseConnected: false,
+          lastError: "Testing offline mode"
+        }
+      }));
+    } else {
+      // Restore online state and check actual connectivity
+      setOnline(true);
+    }
+  };
+
   if (tutorialLoading) {
     return null;
   }
@@ -210,10 +228,20 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <CameraUpload
-              onImageCapture={handleImageCapture}
-              isLoading={analyzeMutation.isPending}
-            />
+            <div className="space-y-4">
+              <CameraUpload
+                onImageCapture={handleImageCapture}
+                isLoading={analyzeMutation.isPending}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTestOffline}
+                className="w-full"
+              >
+                {connection.isOnline ? "Test Offline Mode" : "Restore Online Mode"}
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
