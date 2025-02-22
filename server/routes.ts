@@ -69,7 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         const response = await openai.chat.completions.create({
-          model: "gpt-4-vision-preview", // Fixed model name
+          model: "gpt-4-vision-preview-v2",
           messages: [
             {
               role: "user",
@@ -142,7 +142,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             res.json({ count, newAchievements });
           } catch (error) {
             console.error('Error saving count to database:', error);
-            throw error;
+            res.status(500).json({ 
+              error: "Failed to save count",
+              details: error instanceof Error ? error.message : "Database error"
+            });
           }
         } else {
           // Guest mode response
@@ -160,10 +163,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } catch (error) {
         console.error('OpenAI API Error:', error);
-        res.status(500).json({ 
-          error: "Failed to analyze image",
-          details: error instanceof Error ? error.message : "Unknown error"
-        });
+        if (error instanceof Error && error.message.includes('deprecated')) {
+          res.status(503).json({ 
+            error: "Image analysis service is temporarily unavailable",
+            details: "Our AI service is being upgraded. Please try again in a few minutes."
+          });
+        } else {
+          res.status(500).json({ 
+            error: "Failed to analyze image",
+            details: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
       }
     } catch (error) {
       console.error('Error in /api/analyze:', error);
