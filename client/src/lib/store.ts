@@ -16,7 +16,7 @@ interface ConnectionState {
   isOnline: boolean;
   isDatabaseConnected: boolean;
   lastError?: string;
-  isTestingOffline?: boolean;
+  isTestingOffline: boolean;
 }
 
 interface CountState {
@@ -47,7 +47,8 @@ export const useCountStore = create<CountStore>()(
       connection: {
         isOnline: true,
         isDatabaseConnected: true,
-        isTestingOffline: false
+        isTestingOffline: false,
+        lastError: undefined
       },
       isSyncing: false,
 
@@ -166,7 +167,8 @@ export const useCountStore = create<CountStore>()(
             connection: {
               ...state.connection,
               isOnline: false,
-              isDatabaseConnected: false
+              isDatabaseConnected: false,
+              lastError: 'Network connection lost'
             }
           }));
         }
@@ -201,8 +203,8 @@ export const useCountStore = create<CountStore>()(
             ...state.pendingUploads,
             {
               id: crypto.randomUUID(),
-              image,
               timestamp: new Date(),
+              image,
               retryCount: 0
             }
           ]
@@ -307,6 +309,7 @@ export const useCountStore = create<CountStore>()(
   )
 );
 
+// Set up online/offline listeners
 if (typeof window !== 'undefined') {
   const checkConnectivity = () => useCountStore.getState().setOnline(navigator.onLine);
   window.addEventListener('online', checkConnectivity);

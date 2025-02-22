@@ -14,7 +14,7 @@ import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
 import crypto from 'crypto';
-import { WifiOff, CloudOff, Database } from "lucide-react";
+import { WifiOff, Database } from "lucide-react";
 
 interface CountsResponse {
   counts: Count[];
@@ -170,7 +170,6 @@ export default function Home() {
     analyzeMutation.mutate(base64Images);
   };
 
-  // Updated offline mode test handler
   const handleTestOffline = () => {
     setTestMode(!connection.isTestingOffline);
   };
