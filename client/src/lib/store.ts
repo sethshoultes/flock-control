@@ -2,11 +2,20 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { get, set } from 'idb-keyval';
 import type { Count, InsertCount } from '@shared/schema';
+import { apiRequest } from './queryClient';
+
+interface PendingUpload {
+  id: string;
+  image: string;
+  timestamp: Date;
+  retryCount: number;
+}
 
 interface CountState {
   counts: Count[];
-  pendingUploads: { image: string; timestamp: Date }[];
+  pendingUploads: PendingUpload[];
   isOnline: boolean;
+  isSyncing: boolean;
 }
 
 interface CountStore extends CountState {
@@ -14,6 +23,7 @@ interface CountStore extends CountState {
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
   setOnline: (status: boolean) => void;
+  removePendingUpload: (id: string) => void;
 }
 
 // Create the store with persistence
@@ -24,6 +34,7 @@ export const useCountStore = create<CountStore>()(
       counts: [],
       pendingUploads: [],
       isOnline: navigator.onLine,
+      isSyncing: false,
 
       // Non-persisted functions
       addCount: (count) => {
@@ -36,39 +47,53 @@ export const useCountStore = create<CountStore>()(
         set((state) => ({
           pendingUploads: [
             ...state.pendingUploads,
-            { image, timestamp: new Date() }
+            {
+              id: crypto.randomUUID(),
+              image,
+              timestamp: new Date(),
+              retryCount: 0
+            }
           ]
+        }));
+      },
+
+      removePendingUpload: (id) => {
+        set((state) => ({
+          pendingUploads: state.pendingUploads.filter(upload => upload.id !== id)
         }));
       },
 
       syncPendingUploads: async () => {
         const state = get();
-        if (!state.isOnline || state.pendingUploads.length === 0) return;
+        if (!state.isOnline || state.pendingUploads.length === 0 || state.isSyncing) {
+          return;
+        }
 
-        const pendingUploads = [...state.pendingUploads];
-        set({ pendingUploads: [] });
+        set({ isSyncing: true });
 
-        for (const upload of pendingUploads) {
+        for (const upload of [...state.pendingUploads]) {
           try {
-            const response = await fetch('/api/analyze', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ image: upload.image })
+            const response = await apiRequest('POST', '/api/analyze', {
+              image: upload.image
             });
-
-            if (!response.ok) {
-              throw new Error('Failed to upload image');
-            }
-
             const data = await response.json();
+
+            // Add the count and remove from pending
             state.addCount(data.count);
+            state.removePendingUpload(upload.id);
           } catch (error) {
-            // If upload fails, add back to queue
+            // If upload fails, increment retry count
             set((state) => ({
-              pendingUploads: [...state.pendingUploads, upload]
+              pendingUploads: state.pendingUploads.map(pending =>
+                pending.id === upload.id
+                  ? { ...pending, retryCount: pending.retryCount + 1 }
+                  : pending
+              )
             }));
           }
         }
+
+        set({ isSyncing: false });
       },
 
       setOnline: (status) => {
@@ -88,8 +113,8 @@ export const useCountStore = create<CountStore>()(
         },
         setItem: async (name, value) => {
           // Only persist the state, not the functions
-          const { counts, pendingUploads, isOnline } = value;
-          await set(name, { counts, pendingUploads, isOnline });
+          const { counts, pendingUploads, isOnline, isSyncing } = value;
+          await set(name, { counts, pendingUploads, isOnline, isSyncing });
         },
         removeItem: async (name) => {
           await set(name, undefined);
@@ -99,6 +124,7 @@ export const useCountStore = create<CountStore>()(
         counts: state.counts,
         pendingUploads: state.pendingUploads,
         isOnline: state.isOnline,
+        isSyncing: state.isSyncing,
       }),
     }
   )

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CameraUpload } from "@/components/camera-upload";
 import { CountHistory } from "@/components/count-history";
+import { PendingUploads } from "@/components/pending-uploads";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +66,8 @@ export default function Home() {
           />
         </CardContent>
       </Card>
+
+      <PendingUploads />
 
       <Card>
         <CardHeader>
