@@ -16,6 +16,8 @@ export default function Home() {
   const queryClient = useQueryClient();
   const { isOnline, addCount, queueForUpload } = useCountStore();
   const { showTutorial, completeTutorial, isLoading: tutorialLoading } = useTutorial();
+  const [processingCount, setProcessingCount] = useState(0);
+  const [totalImages, setTotalImages] = useState(0);
 
   const { data: countsData } = useQuery({
     queryKey: ["/api/counts"],
@@ -23,23 +25,39 @@ export default function Home() {
   });
 
   const analyzeMutation = useMutation({
-    mutationFn: async (image: string) => {
+    mutationFn: async (images: string[]) => {
       if (!isOnline) {
-        queueForUpload(image);
+        images.forEach(image => queueForUpload(image));
         throw new Error(
-          "You're offline. Image will be analyzed when you're back online.",
+          "You're offline. Images will be analyzed when you're back online.",
         );
       }
-      const response = await apiRequest("POST", "/api/analyze", { image });
-      return response.json();
+
+      setTotalImages(images.length);
+      setProcessingCount(0);
+
+      const results = await Promise.all(
+        images.map(async (image, index) => {
+          const response = await apiRequest("POST", "/api/analyze", { image });
+          setProcessingCount(prev => prev + 1);
+          return response.json();
+        })
+      );
+
+      return results;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
-      addCount(data.count);
+      data.forEach(result => addCount(result.count));
+
+      const totalChickens = data.reduce((sum, result) => sum + result.count.count, 0);
       toast({
         title: "Success",
-        description: "Image analyzed successfully",
+        description: `Analyzed ${data.length} images. Found ${totalChickens} chickens in total.`,
       });
+
+      setProcessingCount(0);
+      setTotalImages(0);
     },
     onError: (error) => {
       toast({
@@ -47,11 +65,13 @@ export default function Home() {
         description: error.message,
         variant: isOnline ? "destructive" : "default",
       });
+      setProcessingCount(0);
+      setTotalImages(0);
     },
   });
 
-  const handleImageCapture = (base64Image: string) => {
-    analyzeMutation.mutate(base64Image);
+  const handleImageCapture = (base64Images: string[]) => {
+    analyzeMutation.mutate(base64Images);
   };
 
   // Show nothing while tutorial state is loading to prevent flashing
@@ -74,7 +94,14 @@ export default function Home() {
         </CardHeader>
         <CardContent>
           {analyzeMutation.isPending ? (
-            <ChickenLoader />
+            <div className="space-y-2">
+              <ChickenLoader />
+              {totalImages > 1 && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Processing image {processingCount + 1} of {totalImages}
+                </p>
+              )}
+            </div>
           ) : (
             <CameraUpload
               onImageCapture={handleImageCapture}

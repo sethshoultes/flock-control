@@ -4,7 +4,7 @@ import { Camera, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CameraUploadProps {
-  onImageCapture: (base64Image: string) => void;
+  onImageCapture: (base64Images: string[]) => void;
   isLoading: boolean;
 }
 
@@ -47,7 +47,6 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
       initCamera();
     }
 
-    // Cleanup function
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -81,48 +80,62 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
     const imageData = canvas.toDataURL('image/jpeg');
 
     setIsCapturing(false);
-    onImageCapture(imageData);
+    onImageCapture([imageData]);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files?.length) return;
 
-    // Check file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
+    const imageFiles: File[] = Array.from(files).filter(file => file.type.startsWith('image/'));
+
+    if (imageFiles.length === 0) {
       toast({
-        title: "File too large",
-        description: "Please select an image smaller than 10MB",
+        title: "Invalid files",
+        description: "Please select image files only",
         variant: "destructive"
       });
       return;
     }
 
-    // Check file type
-    if (!file.type.startsWith('image/')) {
+    // Check total size (max 30MB for all files)
+    const totalSize = imageFiles.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize > 30 * 1024 * 1024) {
       toast({
-        title: "Invalid file type",
-        description: "Please select an image file",
+        title: "Files too large",
+        description: "Total size should be less than 30MB",
         variant: "destructive"
       });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result;
-      if (typeof result === 'string') {
-        onImageCapture(result);
-      }
-    };
-    reader.onerror = () => {
-      toast({
-        title: "Error",
-        description: "Failed to read the image file",
-        variant: "destructive"
+    const readFiles = imageFiles.map(file => {
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result;
+          if (typeof result === 'string') {
+            resolve(result);
+          } else {
+            reject(new Error('Failed to read file'));
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
       });
-    };
-    reader.readAsDataURL(file);
+    });
+
+    Promise.all(readFiles)
+      .then(base64Images => {
+        onImageCapture(base64Images);
+      })
+      .catch(error => {
+        toast({
+          title: "Error",
+          description: "Failed to read image files",
+          variant: "destructive"
+        });
+      });
   };
 
   return (
@@ -165,6 +178,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
             type="file"
             ref={fileInputRef}
             accept="image/*"
+            multiple
             onChange={handleFileUpload}
             className="hidden"
           />
@@ -176,7 +190,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
             className="bg-white hover:bg-gray-100 min-w-[200px]"
           >
             <Upload className="h-6 w-6 mr-2" />
-            Upload Image
+            Upload Images
           </Button>
         </div>
       )}
