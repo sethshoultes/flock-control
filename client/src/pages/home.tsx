@@ -15,7 +15,7 @@ export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isOnline, addCount, queueForUpload } = useCountStore();
-  const { showTutorial, completeTutorial, isLoading } = useTutorial();
+  const { showTutorial, completeTutorial, isLoading: tutorialLoading } = useTutorial();
 
   const { data: countsData } = useQuery({
     queryKey: ["/api/counts"],
@@ -54,7 +54,8 @@ export default function Home() {
     analyzeMutation.mutate(base64Image);
   };
 
-  if (isLoading) {
+  // Don't render anything while tutorial state is loading
+  if (tutorialLoading) {
     return null;
   }
 

@@ -7,20 +7,35 @@ export function useTutorial() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Load tutorial state on mount
   useEffect(() => {
+    let mounted = true;
+
     async function checkTutorialStatus() {
       try {
         const hasSeenTutorial = await get(TUTORIAL_KEY);
         console.log("Tutorial status from IndexedDB:", hasSeenTutorial);
-        setShowTutorial(!hasSeenTutorial);
+
+        // Only update state if component is still mounted
+        if (mounted) {
+          setShowTutorial(hasSeenTutorial === null || hasSeenTutorial === false);
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error("Failed to check tutorial status:", error);
-        setShowTutorial(true);
+        if (mounted) {
+          setShowTutorial(true);
+          setIsLoading(false);
+        }
       }
-      setIsLoading(false);
     }
 
     checkTutorialStatus();
+
+    // Cleanup function
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const completeTutorial = async () => {
@@ -41,6 +56,7 @@ export function useTutorial() {
       console.log("Tutorial reset successful");
     } catch (error) {
       console.error("Failed to reset tutorial status:", error);
+      // Show error toast or handle error appropriately
     }
   };
 
