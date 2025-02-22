@@ -5,9 +5,11 @@ import { CloudOff, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 export function PendingUploads() {
-  const { pendingUploads, isSyncing } = useAppStore();
+  const store = useAppStore();
+  const pendingUploads = store.pendingUploads || [];
+  const isSyncing = store.isSyncing;
 
-  if (pendingUploads.length === 0) {
+  if (!pendingUploads || pendingUploads.length === 0) {
     return null;
   }
 
