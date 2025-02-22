@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { get, set } from 'idb-keyval';
 import type { Count } from '@shared/schema';
 import { apiRequest } from './queryClient';
+import { toast } from '@/hooks/use-toast';
 
 interface PendingUpload {
   id: string;
@@ -11,18 +12,20 @@ interface PendingUpload {
   retryCount: number;
 }
 
+interface ConnectionState {
+  isOnline: boolean;
+  isDatabaseConnected: boolean;
+  lastError?: string;
+}
+
 interface CountState {
   counts: Count[];
   pendingUploads: PendingUpload[];
-  isOnline: boolean;
+  connection: ConnectionState;
   isSyncing: boolean;
 }
 
 interface CountStore extends CountState {
-  counts: Count[];
-  pendingUploads: PendingUpload[];
-  isOnline: boolean;
-  isSyncing: boolean;
   addCount: (count: Count) => void;
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
@@ -39,7 +42,10 @@ export const useCountStore = create<CountStore>()(
     (set, get) => ({
       counts: [],
       pendingUploads: [],
-      isOnline: true, // Start optimistically
+      connection: {
+        isOnline: true,
+        isDatabaseConnected: true,
+      },
       isSyncing: false,
 
       addCount: (count) => {
@@ -57,6 +63,15 @@ export const useCountStore = create<CountStore>()(
       },
 
       queueForUpload: (image) => {
+        const { connection } = get();
+        if (!connection.isDatabaseConnected) {
+          toast({
+            title: "Database Disconnected",
+            description: "Your data will be saved locally and synced when the database connection is restored.",
+            variant: "destructive"
+          });
+        }
+
         set((state) => ({
           pendingUploads: [
             ...state.pendingUploads,
@@ -78,7 +93,8 @@ export const useCountStore = create<CountStore>()(
 
       syncPendingUploads: async () => {
         const state = get();
-        if (!state.isOnline || state.pendingUploads.length === 0 || state.isSyncing) {
+        const { connection } = state;
+        if (!connection.isOnline || !connection.isDatabaseConnected || state.pendingUploads.length === 0 || state.isSyncing) {
           return;
         }
 
@@ -113,7 +129,10 @@ export const useCountStore = create<CountStore>()(
           const totalChickens = results.reduce((sum, r) => r.success ? sum + r.count.count : sum, 0);
 
           if (successCount > 0) {
-            console.log(`Synced ${successCount} images, found ${totalChickens} chickens`);
+            toast({
+              title: "Sync Complete",
+              description: `Successfully synced ${successCount} images, found ${totalChickens} chickens`
+            });
           }
         } finally {
           set({ isSyncing: false });
@@ -122,21 +141,63 @@ export const useCountStore = create<CountStore>()(
 
       setOnline: async (status) => {
         if (status) {
-          // Verify actual API connectivity
           try {
             const response = await fetch('/api/health');
+            const data = await response.json();
             const isConnected = response.ok;
-            set({ isOnline: isConnected });
+            const isDatabaseConnected = data.database === 'connected';
 
-            if (isConnected) {
-              get().syncPendingUploads();
+            set((state) => ({
+              connection: {
+                ...state.connection,
+                isOnline: isConnected,
+                isDatabaseConnected,
+                lastError: isDatabaseConnected ? undefined : data.error
+              }
+            }));
+
+            // Show appropriate toast messages
+            if (!isConnected) {
+              toast({
+                title: "Connection Lost",
+                description: "You are currently offline. Changes will be saved locally.",
+                variant: "destructive"
+              });
+            } else if (!isDatabaseConnected) {
+              toast({
+                title: "Database Disconnected",
+                description: data.error || "Unable to connect to the database. Your data will be saved locally.",
+                variant: "destructive"
+              });
+            } else {
+              const state = get();
+              if (state.pendingUploads.length > 0) {
+                toast({
+                  title: "Connection Restored",
+                  description: `Syncing ${state.pendingUploads.length} pending uploads...`
+                });
+                state.syncPendingUploads();
+              }
             }
           } catch (error) {
             console.error('Connection check failed:', error);
-            set({ isOnline: false });
+            set((state) => ({
+              connection: {
+                ...state.connection,
+                isOnline: false,
+                isDatabaseConnected: false,
+                lastError: error instanceof Error ? error.message : 'Unknown error'
+              }
+            }));
           }
         } else {
-          set({ isOnline: false });
+          set((state) => ({
+            connection: {
+              ...state.connection,
+              isOnline: false,
+              isDatabaseConnected: false
+            }
+          }));
         }
       },
 

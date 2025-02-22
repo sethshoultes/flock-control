@@ -13,6 +13,7 @@ import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
 import crypto from 'crypto';
+import { WifiOff, CloudOff, Database } from "lucide-react";
 
 interface CountsResponse {
   counts: Count[];
@@ -30,7 +31,7 @@ export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { isOnline, addCount, queueForUpload, importCounts } = useCountStore();
+  const { connection, addCount, queueForUpload, importCounts } = useCountStore();
   const { showTutorial, completeTutorial, isLoading: tutorialLoading } = useTutorial();
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
@@ -41,7 +42,7 @@ export default function Home() {
       const res = await apiRequest("GET", "/api/counts");
       return res.json();
     },
-    enabled: !!user && isOnline
+    enabled: !!user && connection.isOnline && connection.isDatabaseConnected
   });
 
   const analyzeMutation = useMutation<
@@ -69,10 +70,12 @@ export default function Home() {
                 },
                 newAchievements: []
               };
-            } else if (!isOnline) {
-              // Offline mode
+            } else if (!connection.isOnline || !connection.isDatabaseConnected) {
+              // Offline/Disconnected mode
               queueForUpload(image);
-              throw new Error("You're offline. Images will be analyzed when you're back online.");
+              throw new Error(connection.lastError || 
+                (!connection.isOnline ? "You're offline. Images will be analyzed when you're back online." :
+                "Database is disconnected. Images will be analyzed when connection is restored."));
             } else {
               // Online & authenticated
               const response = await apiRequest("POST", "/api/analyze", { image });
@@ -153,9 +156,9 @@ export default function Home() {
     },
     onError: (error) => {
       toast({
-        title: !user ? "Guest Mode" : (isOnline ? "Error" : "Offline Mode"),
+        title: !user ? "Guest Mode" : (!connection.isOnline ? "Offline Mode" : "Database Error"),
         description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: isOnline ? "destructive" : "default",
+        variant: connection.isOnline ? "destructive" : "default",
       });
       setProcessingCount(0);
       setTotalImages(0);
@@ -179,8 +182,21 @@ export default function Home() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Flock Counter {!user ? "(Guest Mode)" : (!isOnline ? "(Offline)" : "")}
+          <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent flex items-center justify-center gap-2">
+            Flock Counter
+            {!connection.isOnline ? (
+              <div className="flex items-center gap-1 text-destructive" title="You are offline">
+                <WifiOff className="w-6 h-6" />
+                <span className="text-sm font-normal">(Offline)</span>
+              </div>
+            ) : !connection.isDatabaseConnected ? (
+              <div className="flex items-center gap-1 text-destructive" title={connection.lastError || "Database disconnected"}>
+                <Database className="w-6 h-6" />
+                <span className="text-sm font-normal">(DB Disconnected)</span>
+              </div>
+            ) : !user ? (
+              <span className="text-sm font-normal">(Guest Mode)</span>
+            ) : null}
           </CardTitle>
         </CardHeader>
         <CardContent>
