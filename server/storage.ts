@@ -54,9 +54,15 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Username already taken");
     }
 
+    // Hash the password before storing
+    const hashedPassword = await hashPassword(insertUser.password);
+
     const [user] = await db
       .insert(users)
-      .values(insertUser)
+      .values({
+        ...insertUser,
+        password: hashedPassword,
+      })
       .returning();
 
     return user;
@@ -84,7 +90,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(counts)
       .where(eq(counts.userId, userId))
-      .orderBy(counts.timestamp, 'desc');
+      .orderBy(counts.timestamp);
   }
 
   async addCount(userId: number, insertCount: InsertCount): Promise<Count> {

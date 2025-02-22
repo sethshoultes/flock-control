@@ -31,10 +31,10 @@ export function setupAuth(app: Express) {
     try {
       const data = insertUserSchema.parse(req.body);
       const user = await storage.createUser(data);
-      
+
       // Start session
       req.session.userId = user.id;
-      
+
       res.status(201).json({
         id: user.id,
         username: user.username,
@@ -42,7 +42,7 @@ export function setupAuth(app: Express) {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Invalid input" });
+        res.status(400).json({ error: "Invalid input: " + error.errors[0].message });
       } else {
         res.status(400).json({ error: error.message });
       }
@@ -51,24 +51,28 @@ export function setupAuth(app: Express) {
 
   app.post("/api/login", async (req, res) => {
     try {
-      const data = loginSchema.parse(req.body);
-      const user = await storage.validateUser(data.username, data.password);
-      
+      const { username, password } = loginSchema.parse(req.body);
+      const user = await storage.validateUser(username, password);
+
       if (!user) {
-        res.status(401).json({ error: "Invalid credentials" });
+        res.status(401).json({ error: "Invalid username or password" });
         return;
       }
-      
+
       // Start session
       req.session.userId = user.id;
-      
+
       res.json({
         id: user.id,
         username: user.username,
         createdAt: user.createdAt,
       });
     } catch (error) {
-      res.status(400).json({ error: "Invalid input" });
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid input: " + error.errors[0].message });
+      } else {
+        res.status(400).json({ error: error.message });
+      }
     }
   });
 
@@ -87,7 +91,7 @@ export function setupAuth(app: Express) {
       res.status(401).json({ error: "Not authenticated" });
       return;
     }
-    
+
     res.json({ userId: req.session.userId });
   });
 }
