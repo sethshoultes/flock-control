@@ -14,8 +14,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/analyze", async (req, res) => {
     try {
       const { image } = req.body;
-      const userId = req.session.userId || 0; // Use 0 for guest mode
-      const isGuest = !req.session.userId;
+      // Get userId from authenticated user, or use 0 for guest mode
+      const userId = req.isAuthenticated() ? (req.user as any).id : 0;
+      const isGuest = !req.isAuthenticated();
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -111,7 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/counts", requireAuth, async (req, res) => {
     try {
-      const userId = req.session.userId!;
+      const userId = (req.user as any).id;
       const counts = await storage.getCounts(userId);
       res.json({ counts });
     } catch (error) {
