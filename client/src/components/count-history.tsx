@@ -28,7 +28,7 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
 
   // Combine and deduplicate counts from both sources
   const allCounts = Array.from(new Map(
-    [...localCounts, ...serverCounts]
+    [...(localCounts || []), ...(serverCounts || [])]
       .map(count => [count.id, count])
   ).values())
     .sort((a, b) => {
@@ -61,18 +61,16 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
   const handleDelete = async () => {
     const ids = Array.from(selectedIds);
 
-    // Update local state
+    // Update local state first
     deleteCounts(ids);
 
     // If user is authenticated, also delete from server
     if (user) {
       const serverIds = ids.filter(id => typeof id === 'number');
       if (serverIds.length > 0) {
-        await deleteMutation.mutateAsync(serverIds as number[]);
+        await deleteMutation.mutateAsync(serverIds);
       }
     }
-
-    setSelectedIds(new Set());
   };
 
   const toggleSelection = (id: string | number) => {
@@ -85,7 +83,7 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
     setSelectedIds(newSelection);
   };
 
-  if (allCounts.length === 0) {
+  if (!allCounts || allCounts.length === 0) {
     return (
       <Card className="p-6 text-center text-muted-foreground">
         No counts recorded yet
