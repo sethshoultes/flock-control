@@ -12,7 +12,6 @@ import { useCountStore } from "@/lib/store";
 import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
-import crypto from 'crypto';
 
 export default function Home() {
   const { toast } = useToast();
@@ -55,7 +54,7 @@ export default function Home() {
               const data = await response.json();
               count = {
                 ...data.count,
-                id: crypto.randomUUID(),
+                id: crypto.randomUUID(), // Using Web Crypto API
                 userId: 0, // Guest user
                 labels: [...(data.count.labels || []), "guest-mode"]
               };
@@ -77,7 +76,7 @@ export default function Home() {
               // For guest mode, create a basic count if AI fails
               return {
                 count: {
-                  id: crypto.randomUUID(),
+                  id: crypto.randomUUID(), // Using Web Crypto API
                   count: 0,
                   imageUrl: image,
                   timestamp: new Date(),
@@ -125,7 +124,7 @@ export default function Home() {
     onError: (error) => {
       toast({
         title: !user ? "Guest Mode" : (isOnline ? "Error" : "Offline Mode"),
-        description: error.message,
+        description: error instanceof Error ? error.message : "An unknown error occurred",
         variant: isOnline ? "destructive" : "default",
       });
       setProcessingCount(0);
