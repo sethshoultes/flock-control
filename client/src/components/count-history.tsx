@@ -15,8 +15,9 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
   // Combine and sort counts from both sources
   const allCounts = [...localCounts, ...serverCounts]
     .sort((a, b) => {
-      const timeA = a.timestamp?.getTime() ?? 0;
-      const timeB = b.timestamp?.getTime() ?? 0;
+      // Convert string timestamps to Date objects
+      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
       return timeB - timeA;
     });
 
@@ -39,7 +40,9 @@ export function CountHistory({ counts: serverCounts }: CountHistoryProps) {
               </div>
               <div className="flex items-center gap-2">
                 <div className="text-sm text-muted-foreground">
-                  {count.timestamp ? format(new Date(count.timestamp), 'MMM d, yyyy h:mm a') : 'No date'}
+                  {count.timestamp 
+                    ? format(new Date(count.timestamp), 'MMM d, yyyy h:mm a') 
+                    : 'No date'}
                 </div>
                 {isOnline ? (
                   <Cloud className="h-4 w-4 text-blue-500" />
