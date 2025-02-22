@@ -11,7 +11,7 @@ export function DevTools() {
   };
 
   const handleToggleOnline = () => {
-    store.setOnlineStatus(!store.isOnline).catch(console.error);
+    store.setOnline(!store.isOnline).catch(console.error);
   };
 
   return (

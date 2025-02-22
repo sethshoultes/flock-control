@@ -20,7 +20,7 @@ interface AppState {
   addCount: (count: Count) => void;
   queueForUpload: (image: string) => void;
   syncPendingUploads: () => Promise<void>;
-  setOnlineStatus: (status: boolean) => Promise<void>;
+  setOnline: (status: boolean) => Promise<void>;
   removePendingUpload: (id: string) => void;
   clearCounts: () => void;
   importCounts: (counts: Count[]) => void;
@@ -50,7 +50,7 @@ export const useAppStore = create<AppState>()(
       // Count state
       counts: [],
       pendingUploads: [],
-      isOnline: navigator.onLine, // Initialize with browser's online status
+      isOnline: navigator.onLine,
       isSyncing: false,
 
       // Tutorial state
@@ -157,7 +157,7 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      setOnlineStatus: async (status: boolean) => {
+      setOnline: async (status: boolean) => {
         if (status) {
           try {
             const controller = new AbortController();
@@ -196,7 +196,6 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      // Rest of the implementation remains unchanged
       clearCounts: () => {
         set({ counts: [], pendingUploads: [] });
       },
@@ -274,7 +273,7 @@ export const useAppStore = create<AppState>()(
 // Initialize app state
 if (typeof window !== 'undefined') {
   // Set up online/offline listeners
-  const checkConnectivity = () => useAppStore.getState().setOnlineStatus(navigator.onLine);
+  const checkConnectivity = () => useAppStore.getState().setOnline(navigator.onLine);
   window.addEventListener('online', checkConnectivity);
   window.addEventListener('offline', checkConnectivity);
 
