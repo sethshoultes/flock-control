@@ -27,33 +27,53 @@ if (!process.env.DATABASE_URL) {
 
 console.log('Initializing database connection pool...');
 
+// Update connection configuration for both development and production
+const connectionString = process.env.DATABASE_URL;
+const isProduction = process.env.NODE_ENV === 'production' || process.env.DEPLOYMENT === 'true';
+
 // Create connection pool with proper error handling
 export const pool = new Pool({ 
-  connectionString: process.env.DEPLOYMENT 
-    ? process.env.DATABASE_URL.replace('.us-east-2', '-pooler.us-east-2')
-    : process.env.DATABASE_URL,
+  connectionString: isProduction 
+    ? connectionString.replace(/^postgres:/, 'postgres:pooler') // Use pooler in production
+    : connectionString,
+  max: isProduction ? 10 : 20, // Reduce max connections in production
+  ssl: isProduction ? { rejectUnauthorized: false } : undefined,
   connectionTimeoutMillis: 5000, // 5 second timeout
-  max: 20, // Maximum number of clients in the pool
-  ssl: process.env.DEPLOYMENT ? { rejectUnauthorized: false } : undefined
 });
 
 // Add error handler for the pool
 pool.on('error', (err) => {
   console.error('Unexpected error on idle database client:', err);
+  // Log additional details in production
+  if (isProduction) {
+    console.error('Production database error details:', {
+      code: err.code,
+      message: err.message,
+      stack: err.stack
+    });
+  }
   process.exit(-1);
 });
 
 console.log('Creating Drizzle ORM instance...');
-export const db = drizzle({ client: pool, schema });
+export const db = drizzle(pool, { schema });
 
-// Test the connection
+// Test the connection and log the result
 (async () => {
   try {
+    console.log('Testing database connection...');
     const client = await pool.connect();
-    console.log('Database connection test successful');
+    const result = await client.query('SELECT NOW()');
+    console.log('Database connection test successful:', result.rows[0]);
     client.release();
   } catch (error) {
     console.error('Failed to connect to database:', error);
+    if (isProduction) {
+      console.error('Production connection error details:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    }
     throw error;
   }
 })();
