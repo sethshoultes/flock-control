@@ -23,8 +23,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.deleteCounts(userId, countIds);
+      console.log(`Successfully deleted counts ${countIds} for user ${userId}`);
       res.sendStatus(200);
     } catch (error) {
+      console.error('Error deleting counts:', error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       res.status(500).json({ error: message });
     }
@@ -35,6 +37,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { image } = req.body;
       const isAuthenticated = req.isAuthenticated();
       const userId = isAuthenticated ? (req.user as any).id : 0;
+
+      console.log(`Processing image analysis request for user ${userId} (authenticated: ${isAuthenticated})`);
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -111,18 +115,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Only store in database if user is authenticated
       if (isAuthenticated) {
-        count = await storage.addCount(userId, {
-          count: result.count,
-          imageUrl: image,
-          breed: result.breed,
-          confidence: result.confidence,
-          labels: result.labels,
-          userId: userId
-        });
+        console.log('Saving count to database for authenticated user');
+        try {
+          count = await storage.addCount(userId, {
+            count: result.count,
+            imageUrl: image,
+            breed: result.breed,
+            confidence: result.confidence,
+            labels: result.labels,
+            userId: userId
+          });
+          console.log('Successfully saved count:', count.id);
+        } catch (error) {
+          console.error('Error saving count to database:', error);
+          throw error;
+        }
       } else {
         // For guest users, create a count object without storing in database
+        console.log('Creating guest mode count object');
         count = {
-          id: crypto.randomUUID(), // Client-side ID for guest mode
+          id: crypto.randomUUID(),
           userId: 0,
           count: result.count,
           imageUrl: image,
@@ -135,6 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ count });
     } catch (error) {
+      console.error('Error in /api/analyze:', error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       res.status(500).json({ error: message });
     }
@@ -143,9 +156,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/counts", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
+      console.log('Fetching counts for user:', userId);
       const counts = await storage.getCounts(userId);
+      console.log(`Retrieved ${counts.length} counts for user ${userId}`);
       res.json({ counts });
     } catch (error) {
+      console.error('Error fetching counts:', error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       res.status(500).json({ error: message });
     }
