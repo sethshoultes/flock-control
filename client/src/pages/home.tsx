@@ -41,12 +41,7 @@ export default function Home() {
       const res = await apiRequest("GET", "/api/counts");
       return res.json();
     },
-    enabled: !!user && isOnline,
-    onSuccess: (data: CountsResponse) => {
-      if (data?.counts) {
-        importCounts(data.counts);
-      }
-    },
+    enabled: !!user && isOnline
   });
 
   const analyzeMutation = useMutation<
@@ -61,30 +56,33 @@ export default function Home() {
       const results = await Promise.all(
         images.map(async (image) => {
           try {
-            let count: Count;
-
             if (!user) {
+              // Guest mode
               const response = await apiRequest("POST", "/api/analyze", { image });
-              const data = await response.json();
-              count = {
-                ...data.count,
-                id: crypto.randomUUID(),
-                userId: 0,
-                labels: [...(data.count.labels || []), "guest-mode"]
+              const responseData = await response.json();
+              return {
+                count: {
+                  ...responseData.count,
+                  id: crypto.randomUUID(),
+                  userId: 0,
+                  labels: [...(responseData.count.labels || []), "guest-mode"]
+                },
+                newAchievements: []
               };
             } else if (!isOnline) {
+              // Offline mode
               queueForUpload(image);
               throw new Error("You're offline. Images will be analyzed when you're back online.");
             } else {
+              // Online & authenticated
               const response = await apiRequest("POST", "/api/analyze", { image });
-              const data = await response.json();
-              count = data.count;
+              const responseData = await response.json();
+              setProcessingCount(prev => prev + 1);
+              return responseData;
             }
-
-            setProcessingCount(prev => prev + 1);
-            return { count, newAchievements: data?.newAchievements };
           } catch (error) {
             if (!user && error instanceof Error) {
+              // Fallback for guest mode on error
               return {
                 count: {
                   id: crypto.randomUUID(),
@@ -95,7 +93,8 @@ export default function Home() {
                   breed: null,
                   confidence: null,
                   labels: ["guest-mode", "ai-failed"]
-                } as Count
+                } as Count,
+                newAchievements: []
               };
             }
             throw error;
@@ -106,10 +105,19 @@ export default function Home() {
       return results;
     },
     onSuccess: (data) => {
+      // Import counts into local store
+      data.forEach(result => {
+        if (result.count) {
+          addCount(result.count);
+        }
+      });
+
       if (user) {
+        // Refresh queries for authenticated users
         queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
         queryClient.invalidateQueries({ queryKey: ["/api/achievements"] });
 
+        // Show achievement notifications
         const achievementsEarned = data.filter(result => result.newAchievements?.length > 0);
         achievementsEarned.forEach(result => {
           result.newAchievements?.forEach(achievement => {
@@ -121,10 +129,9 @@ export default function Home() {
         });
       }
 
-      data.forEach(result => addCount(result.count));
-
-      const totalChickens = data.reduce((sum, result) => sum + result.count.count, 0);
-      const failedAnalysis = data.some(result => result.count.labels?.includes("ai-failed"));
+      // Calculate stats for toast message
+      const totalChickens = data.reduce((sum, result) => sum + (result.count?.count || 0), 0);
+      const failedAnalysis = data.some(result => result.count?.labels?.includes("ai-failed"));
 
       if (user) {
         toast({
