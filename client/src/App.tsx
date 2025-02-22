@@ -8,11 +8,13 @@ import { Header } from "@/components/header";
 import Home from "@/pages/home";
 import AuthPage from "@/pages/auth";
 import NotFound from "@/pages/not-found";
+import AchievementsPage from "@/pages/achievements";
 
 function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <Route path="/achievements" component={AchievementsPage} />
       <Route path="/" component={Home} />
       <Route component={NotFound} />
     </Switch>

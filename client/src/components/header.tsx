@@ -1,8 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useAuthMutations } from "@/hooks/use-auth";
-import { LogIn, LogOut, User } from "lucide-react";
+import { LogIn, LogOut, User, Trophy, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const { user } = useAuth();
@@ -12,25 +19,39 @@ export function Header() {
   return (
     <header className="border-b">
       <div className="container max-w-2xl mx-auto p-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+        <h1 
+          onClick={() => setLocation("/")} 
+          className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent cursor-pointer"
+        >
           Flock Counter
         </h1>
 
         {user ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground flex items-center gap-1">
-              <User className="h-4 w-4" />
-              {user.username}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => logoutMutation.mutate()}
-              disabled={logoutMutation.isPending}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  {user.username}
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setLocation("/achievements")} className="cursor-pointer">
+                  <Trophy className="h-4 w-4 mr-2" />
+                  Achievements
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => logoutMutation.mutate()}
+                  disabled={logoutMutation.isPending}
+                  className="cursor-pointer text-destructive"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ) : (
           <Button
