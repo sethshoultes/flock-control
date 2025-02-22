@@ -6,6 +6,7 @@ import { insertCountSchema } from "@shared/schema";
 import { setupAuth, requireAuth } from "./auth";
 import * as crypto from 'crypto';
 import { and, inArray } from "drizzle-orm";
+import { achievementService } from "./achievements";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -126,6 +127,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: userId
           });
           console.log('Successfully saved count:', count.id);
+
+          console.log('Checking achievements after new count');
+          const newAchievements = await achievementService.checkAchievements(userId);
+          if (newAchievements.length > 0) {
+            console.log('User earned new achievements:', newAchievements.map(a => a.name));
+          }
+          res.json({ count, newAchievements });
         } catch (error) {
           console.error('Error saving count to database:', error);
           throw error;
@@ -143,9 +151,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           confidence: result.confidence,
           labels: [...result.labels, "guest-mode"]
         };
+        res.json({ count });
       }
-
-      res.json({ count });
     } catch (error) {
       console.error('Error in /api/analyze:', error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
@@ -166,6 +173,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: message });
     }
   });
+
+  // Added achievement route
+  app.get("/api/achievements", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      console.log('Fetching achievements for user:', userId);
+      const achievements = await achievementService.getUserAchievements(userId);
+      res.json({ achievements });
+    } catch (error) {
+      console.error('Error fetching achievements:', error);
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(500).json({ error: message });
+    }
+  });
+
+  achievementService.initializeAchievements(); // Initialize achievements
 
   const httpServer = createServer(app);
   return httpServer;

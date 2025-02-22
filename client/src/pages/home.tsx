@@ -12,6 +12,7 @@ import { useCountStore } from "@/lib/store";
 import { useTutorial } from "@/hooks/use-tutorial";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
+import { AchievementsDisplay } from "@/components/achievements-display";
 
 export default function Home() {
   const { toast } = useToast();
@@ -97,7 +98,19 @@ export default function Home() {
     onSuccess: (data) => {
       if (user) {
         queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/achievements"] });
+
+        // Show achievement notifications if any were earned
+        if (data.newAchievements?.length > 0) {
+          data.newAchievements.forEach(achievement => {
+            toast({
+              title: "Achievement Unlocked! 🏆",
+              description: `${achievement.name} - ${achievement.description}`,
+            });
+          });
+        }
       }
+
       data.forEach(result => addCount(result.count));
 
       const totalChickens = data.reduce((sum, result) => sum + result.count.count, 0);
@@ -111,7 +124,7 @@ export default function Home() {
       } else {
         toast({
           title: "Guest Mode",
-          description: failedAnalysis 
+          description: failedAnalysis
             ? "Some images couldn't be analyzed. Try again or sign in for better results."
             : `Added ${data.length} images with ${totalChickens} chickens to local storage.`,
           variant: failedAnalysis ? "destructive" : "default"
@@ -143,9 +156,9 @@ export default function Home() {
 
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
-      <TutorialModal 
-        isOpen={showTutorial} 
-        onClose={completeTutorial} 
+      <TutorialModal
+        isOpen={showTutorial}
+        onClose={completeTutorial}
       />
 
       <Card>
@@ -172,6 +185,9 @@ export default function Home() {
           )}
         </CardContent>
       </Card>
+
+      {/* Only show achievements for logged-in users */}
+      {user && <AchievementsDisplay />}
 
       {/* Only show pending uploads for logged-in users */}
       {user && <PendingUploads />}
