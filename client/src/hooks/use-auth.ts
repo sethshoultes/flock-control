@@ -1,16 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest, queryClient } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import type { InsertUser } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect } from 'react'; // Added import for useState and useEffect
 
 interface AuthState {
   user: { id: number; username: string } | null;
   isLoading: boolean;
   error: string | null;
-  isOnline: boolean; // Added isOnline to the AuthState
 }
 
 interface AuthStore extends AuthState {
@@ -26,11 +24,9 @@ export const useAuth = create<AuthStore>()(
       user: null,
       isLoading: false,
       error: null,
-      isOnline: navigator.onLine, // Initialize isOnline
 
       login: async (username: string, password: string) => {
         console.log('Attempting login...', { username });
-        await queryClient.invalidateQueries({ queryKey: ['/api/counts'] });
         set({ isLoading: true, error: null });
         try {
           const res = await apiRequest('POST', '/api/login', { username, password });
@@ -80,8 +76,11 @@ export const useAuth = create<AuthStore>()(
     }),
     {
       name: 'auth-storage',
+      partialize: (state) => ({ 
+        user: state.user 
+      }),
       storage: {
-        getItem: async (name) => {
+        getItem: (name) => {
           try {
             const item = localStorage.getItem(name);
             console.log('Retrieved auth storage:', { name, value: item ? 'Found' : 'Not found' });
@@ -91,7 +90,7 @@ export const useAuth = create<AuthStore>()(
             return null;
           }
         },
-        setItem: async (name, value) => {
+        setItem: (name, value) => {
           try {
             localStorage.setItem(name, JSON.stringify(value));
             console.log('Saved auth to storage:', { name });
@@ -99,7 +98,7 @@ export const useAuth = create<AuthStore>()(
             console.error('Failed to save auth to storage:', error);
           }
         },
-        removeItem: async (name) => {
+        removeItem: (name) => {
           try {
             localStorage.removeItem(name);
             console.log('Removed auth from storage:', { name });
@@ -115,35 +114,6 @@ export const useAuth = create<AuthStore>()(
 export function useAuthMutations() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-  useEffect(() => {
-    const updateOnlineStatus = () => {
-      const online = navigator.onLine;
-      console.log('Network status changed:', online ? 'online' : 'offline');
-      setIsOnline(online);
-    };
-
-    updateOnlineStatus();
-    window.addEventListener('online', updateOnlineStatus);
-    window.addEventListener('offline', updateOnlineStatus);
-
-    // Test connection on mount and status change
-    if (navigator.onLine) {
-      fetch('/api/health')
-        .then(res => res.json())
-        .then(data => {
-          setIsOnline(data.status === 'healthy');
-        })
-        .catch(() => setIsOnline(false));
-    }
-
-    return () => {
-      window.removeEventListener('online', updateOnlineStatus);
-      window.removeEventListener('offline', updateOnlineStatus);
-    };
-  }, []);
-
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {

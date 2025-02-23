@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { get, set } from 'idb-keyval';
 import type { Count } from '@shared/schema';
-import { apiRequest } from './queryClient';
 
 // Unified state interface
 interface AppState {
@@ -21,87 +20,86 @@ interface AppState {
   deleteCounts: (ids: (string | number)[]) => void;
 
   // Tutorial actions
-  completeTutorial: () => Promise<void>;
-  resetTutorial: () => Promise<void>;
-  initializeTutorial: () => Promise<void>;
+  completeTutorial: () => void;
+  resetTutorial: () => void;
+  initializeTutorial: () => void;
 }
 
 const TUTORIAL_KEY = 'chicken-counter-tutorial-shown';
 const STORAGE_KEY = 'chicken-counter-storage';
 
+// Separate non-persisted actions
+const createActions = (set: any) => ({
+  addCount: (count: Count) => {
+    set((state: AppState) => ({
+      counts: [count, ...state.counts]
+    }));
+  },
+
+  clearCounts: () => {
+    set({ counts: [] });
+  },
+
+  importCounts: (counts: Count[]) => {
+    set({ counts });
+  },
+
+  updateCount: (id: string | number, updates: Partial<Count>) => {
+    set((state: AppState) => ({
+      counts: state.counts.map(count =>
+        count.id.toString() === id.toString() ? { ...count, ...updates } : count
+      )
+    }));
+  },
+
+  deleteCounts: (ids: (string | number)[]) => {
+    set((state: AppState) => ({
+      counts: state.counts.filter(count => !ids.includes(count.id))
+    }));
+  },
+
+  completeTutorial: () => {
+    set({ showTutorial: false });
+    localStorage.setItem(TUTORIAL_KEY, 'true');
+  },
+
+  resetTutorial: () => {
+    set({ showTutorial: true });
+    localStorage.setItem(TUTORIAL_KEY, 'false');
+  },
+
+  initializeTutorial: () => {
+    const hasSeenTutorial = localStorage.getItem(TUTORIAL_KEY) === 'true';
+    set({ 
+      showTutorial: !hasSeenTutorial,
+      tutorialLoading: false 
+    });
+  }
+});
+
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get) => ({
-      // Initial state
+    (set) => ({
+      // Initial state (persisted)
       counts: [],
       showTutorial: true,
       tutorialLoading: true,
 
-      initializeTutorial: async () => {
-        try {
-          const hasSeenTutorial = await get(TUTORIAL_KEY);
-          set({ 
-            showTutorial: !hasSeenTutorial,
-            tutorialLoading: false 
-          });
-        } catch (error) {
-          console.error('Failed to initialize tutorial state:', error);
-          set({ showTutorial: true, tutorialLoading: false });
-        }
-      },
-
-      addCount: (count: Count) => {
-        set((state) => ({
-          counts: [count, ...state.counts]
-        }));
-      },
-
-      clearCounts: () => {
-        set({ counts: [] });
-      },
-
-      importCounts: (counts: Count[]) => {
-        set({ counts });
-      },
-
-      updateCount: (id: string | number, updates: Partial<Count>) => {
-        set((state) => ({
-          counts: state.counts.map(count =>
-            count.id.toString() === id.toString() ? { ...count, ...updates } : count
-          )
-        }));
-      },
-
-      deleteCounts: (ids: (string | number)[]) => {
-        set((state) => ({
-          counts: state.counts.filter(count => !ids.includes(count.id))
-        }));
-      },
-
-      completeTutorial: async () => {
-        try {
-          await set(TUTORIAL_KEY, true);
-          set({ showTutorial: false });
-        } catch (error) {
-          console.error('Failed to save tutorial completion:', error);
-        }
-      },
-
-      resetTutorial: async () => {
-        try {
-          await set(TUTORIAL_KEY, false);
-          set({ showTutorial: true });
-        } catch (error) {
-          console.error('Failed to reset tutorial:', error);
-        }
-      },
+      // Actions (not persisted)
+      ...createActions(set)
     }),
     {
       name: STORAGE_KEY,
+      partialize: (state) => ({
+        counts: state.counts,
+        showTutorial: state.showTutorial,
+        tutorialLoading: state.tutorialLoading
+      }),
       storage: {
         getItem: async (name) => {
           try {
             const value = await get(name);
+            console.log('Retrieved store data:', { name, found: !!value });
             return value;
           } catch (error) {
             console.error('Failed to load from IndexedDB:', error);
@@ -111,6 +109,7 @@ export const useAppStore = create<AppState>()(
         setItem: async (name, value) => {
           try {
             await set(name, value);
+            console.log('Saved store data:', { name });
           } catch (error) {
             console.error('Failed to save to IndexedDB:', error);
           }
@@ -118,6 +117,7 @@ export const useAppStore = create<AppState>()(
         removeItem: async (name) => {
           try {
             await set(name, undefined);
+            console.log('Removed store data:', { name });
           } catch (error) {
             console.error('Failed to remove from IndexedDB:', error);
           }
@@ -127,6 +127,7 @@ export const useAppStore = create<AppState>()(
   )
 );
 
+// Initialize tutorial state
 if (typeof window !== 'undefined') {
   useAppStore.getState().initializeTutorial();
 }
