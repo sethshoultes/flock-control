@@ -6,7 +6,7 @@ import type { InsertUser } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 
 interface AuthState {
-  user: { id: number; username: string } | null;
+  user: { id: number; username: string; role: string } | null;
   isLoading: boolean;
   error: string | null;
 }
