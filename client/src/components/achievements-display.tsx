@@ -27,11 +27,16 @@ export function AchievementsDisplay() {
     queryFn: async () => {
       const res = await fetch("/api/achievements");
       if (!res.ok) throw new Error("Failed to fetch achievements");
-      return res.json();
+      const data = await res.json();
+      console.log('Achievement data:', data); // Debug log
+      return data;
     }
   });
 
-  if (!data) return null;
+  if (!data?.achievements || !Array.isArray(data.achievements)) {
+    console.log('No achievements data available');
+    return null;
+  }
 
   return (
     <div className="space-y-8">
@@ -65,7 +70,7 @@ export function AchievementsDisplay() {
       </div>
 
       {/* Available Achievements */}
-      {data.availableAchievements?.length > 0 && (
+      {data.availableAchievements && data.availableAchievements.length > 0 && (
         <>
           <h3 className="text-lg font-semibold text-foreground">Available Achievements</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

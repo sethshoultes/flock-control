@@ -214,29 +214,25 @@ export class AchievementService {
       // Get all achievements
       const allAchievements = await db.select().from(achievements);
 
-      // Get user's earned achievements
-      const earnedAchievementIds = await db
-        .select({ id: userAchievements.achievementId, earnedAt: userAchievements.earnedAt })
+      // Get user's earned achievements with timestamps
+      const earnedAchievements = await db
+        .select()
         .from(userAchievements)
         .where(eq(userAchievements.userId, userId));
 
-      // Create a map of earned achievements
-      const earnedMap = new Map(earnedAchievementIds.map(({ id, earnedAt }) => [id, earnedAt]));
+      // Convert earned achievements into a Set for quick lookup
+      const earnedSet = new Set(earnedAchievements.map(ua => ua.achievementId));
 
-      // Split achievements into earned and available
-      const earned = [];
-      const available = [];
+      // Map earned achievements with their earned timestamps
+      const earned = allAchievements
+        .filter(achievement => earnedSet.has(achievement.id))
+        .map(achievement => ({
+          ...achievement,
+          earnedAt: earnedAchievements.find(ua => ua.achievementId === achievement.id)?.earnedAt
+        }));
 
-      for (const achievement of allAchievements) {
-        const earnedAt = earnedMap.get(achievement.id);
-        if (earnedAt) {
-          earned.push({ ...achievement, earnedAt });
-        } else {
-          available.push(achievement);
-        }
-      }
-
-      console.log(`Found ${earned.length} earned and ${available.length} available achievements`);
+      // Get available achievements (not yet earned)
+      const available = allAchievements.filter(achievement => !earnedSet.has(achievement.id));
 
       return {
         achievements: earned,
