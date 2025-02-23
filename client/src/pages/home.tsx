@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CameraUpload } from "@/components/camera-upload";
 import { CountHistory } from "@/components/count-history";
-import { PendingUploads } from "@/components/pending-uploads";
 import { ChickenLoader } from "@/components/chicken-loader";
 import { TutorialModal } from "@/components/tutorial-modal";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -123,7 +122,6 @@ export default function Home() {
 
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
-      {/* Only show tutorial modal if not in dev tools and showTutorial is true */}
       {store.showTutorial && (
         <TutorialModal
           isOpen={store.showTutorial}
@@ -134,7 +132,7 @@ export default function Home() {
       <Card>
         <CardHeader>
           <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Flock Counter {!user ? "(Guest Mode)" : (!store.isOnline ? "(Offline)" : "")}
+            Flock Counter {!user && "(Guest Mode)"}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -156,10 +154,6 @@ export default function Home() {
         </CardContent>
       </Card>
 
-      {/* Show PendingUploads only for authenticated users */}
-      {user && <PendingUploads />}
-
-      {/* Always show history card but content depends on auth state */}
       <Card>
         <CardHeader>
           <CardTitle>History</CardTitle>

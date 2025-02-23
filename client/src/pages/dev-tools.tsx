@@ -2,7 +2,7 @@ import { DatabaseDebug } from "@/components/database-debug";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
-import { Wifi, WifiOff, BookOpen } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DevTools() {
@@ -25,10 +25,6 @@ export default function DevTools() {
     }
   };
 
-  const handleToggleOnline = () => {
-    store.setOnline(!store.isOnline);
-  };
-
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
       <Card>
@@ -39,24 +35,6 @@ export default function DevTools() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Network Status */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Network Status</h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleToggleOnline}
-              className={store.isOnline ? "bg-green-100" : "bg-orange-100"}
-            >
-              {store.isOnline ? (
-                <Wifi className="h-4 w-4 mr-2 text-green-600" />
-              ) : (
-                <WifiOff className="h-4 w-4 mr-2 text-orange-600" />
-              )}
-              {store.isOnline ? "Online" : "Offline"}
-            </Button>
-          </div>
-
           {/* Database Status */}
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Database Connection</h3>

@@ -8,9 +8,6 @@ import { apiRequest } from './queryClient';
 interface AppState {
   // Count related state
   counts: Count[];
-  pendingUploads: PendingUpload[];
-  isOnline: boolean;
-  isSyncing: boolean;
 
   // Tutorial state
   showTutorial: boolean;
@@ -18,10 +15,6 @@ interface AppState {
 
   // Actions
   addCount: (count: Count) => void;
-  queueForUpload: (image: string) => void;
-  syncPendingUploads: () => Promise<void>;
-  setOnline: (status: boolean) => void;
-  removePendingUpload: (id: string) => void;
   clearCounts: () => void;
   importCounts: (counts: Count[]) => void;
   updateCount: (id: string | number, updates: Partial<Count>) => void;
@@ -33,13 +26,6 @@ interface AppState {
   initializeTutorial: () => Promise<void>;
 }
 
-interface PendingUpload {
-  id: string;
-  image: string;
-  timestamp: Date;
-  retryCount: number;
-}
-
 const TUTORIAL_KEY = 'chicken-counter-tutorial-shown';
 const STORAGE_KEY = 'chicken-counter-storage';
 
@@ -48,9 +34,6 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       // Initial state
       counts: [],
-      pendingUploads: [],
-      isOnline: true,
-      isSyncing: false,
       showTutorial: true,
       tutorialLoading: true,
 
@@ -73,74 +56,8 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      queueForUpload: (image: string) => {
-        console.log('Queueing image for upload (offline mode)');
-        set((state) => ({
-          pendingUploads: [
-            ...state.pendingUploads,
-            {
-              id: crypto.randomUUID(),
-              image,
-              timestamp: new Date(),
-              retryCount: 0
-            }
-          ]
-        }));
-      },
-
-      syncPendingUploads: async () => {
-        const state = get();
-        if (!state.isOnline || state.pendingUploads.length === 0 || state.isSyncing) {
-          return;
-        }
-
-        set({ isSyncing: true });
-
-        try {
-          const results = await Promise.all(
-            state.pendingUploads.map(async (upload) => {
-              try {
-                const response = await apiRequest('POST', '/api/analyze', { image: upload.image });
-                const data = await response.json();
-
-                if (data.count) {
-                  state.addCount(data.count);
-                  state.removePendingUpload(upload.id);
-                  return { success: true, count: data.count };
-                }
-                return { success: false, error: new Error('No count data received') };
-              } catch (error) {
-                console.error('Upload error:', error);
-                return { success: false, error };
-              }
-            })
-          );
-
-          const successCount = results.filter(r => r.success).length;
-          console.log(`Sync completed: ${successCount} succeeded`);
-        } catch (error) {
-          console.error('Error during sync:', error);
-        } finally {
-          set({ isSyncing: false });
-        }
-      },
-
-      setOnline: (status: boolean) => {
-        console.log('Setting online status:', status);
-        set({ isOnline: status });
-        if (status) {
-          get().syncPendingUploads();
-        }
-      },
-
-      removePendingUpload: (id: string) => {
-        set((state) => ({
-          pendingUploads: state.pendingUploads.filter(upload => upload.id !== id)
-        }));
-      },
-
       clearCounts: () => {
-        set({ counts: [], pendingUploads: [] });
+        set({ counts: [] });
       },
 
       importCounts: (counts: Count[]) => {
@@ -211,8 +128,5 @@ export const useAppStore = create<AppState>()(
 );
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => useAppStore.getState().setOnline(true));
-  window.addEventListener('offline', () => useAppStore.getState().setOnline(false));
-  useAppStore.getState().setOnline(navigator.onLine);
   useAppStore.getState().initializeTutorial();
 }
