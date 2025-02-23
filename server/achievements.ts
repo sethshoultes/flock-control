@@ -127,14 +127,14 @@ export class AchievementService {
           .where(eq(counts.userId, userId)),
 
         // Get max consecutive days
-        db.select({ 
+        db.select({
           max: sql<number>`
             max(consecutive_days)
             from (
-              select 
+              select
                 count(*) as consecutive_days
               from (
-                select 
+                select
                   date(timestamp),
                   date(timestamp) - make_interval(days => row_number() over (order by date(timestamp))) as grp
                 from (
@@ -211,36 +211,45 @@ export class AchievementService {
   async getUserAchievements(userId: number) {
     console.log(`Getting achievements for user ${userId}`);
     try {
-      // Get earned achievements
+      // Get all achievements first
+      const allAchievements = await db.select().from(achievements);
+      console.log(`Found ${allAchievements.length} total achievements`);
+
+      // Get user's earned achievements
       const userAchieved = await db
         .select({
-          achievement: achievements,
+          achievementId: userAchievements.achievementId,
           earnedAt: userAchievements.earnedAt
         })
         .from(userAchievements)
-        .innerJoin(achievements, eq(achievements.id, userAchievements.achievementId))
         .where(eq(userAchievements.userId, userId));
 
-      // Get earned achievement IDs
-      const earnedIds = userAchieved.map(ua => ua.achievement.id);
+      console.log(`User has earned ${userAchieved.length} achievements`);
 
-      // Get available (unearned) achievements
-      const availableAchievements = await db
-        .select()
-        .from(achievements)
-        .where(
-          notInArray(
-            achievements.id,
-            earnedIds
-          )
-        );
+      // Create a set of earned achievement IDs for quick lookup
+      const earnedIds = new Set(userAchieved.map(ua => ua.achievementId));
+
+      // Separate achievements into earned and available
+      const earned = [];
+      const available = [];
+
+      for (const achievement of allAchievements) {
+        if (earnedIds.has(achievement.id)) {
+          const userAchievement = userAchieved.find(ua => ua.achievementId === achievement.id);
+          earned.push({
+            ...achievement,
+            earnedAt: userAchievement?.earnedAt
+          });
+        } else {
+          available.push(achievement);
+        }
+      }
+
+      console.log(`Returning ${earned.length} earned and ${available.length} available achievements`);
 
       return {
-        achievements: userAchieved.map(({ achievement, earnedAt }) => ({
-          ...achievement,
-          earnedAt
-        })),
-        availableAchievements
+        achievements: earned,
+        availableAchievements: available
       };
     } catch (error) {
       console.error('Error getting user achievements:', error);
