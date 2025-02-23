@@ -32,7 +32,8 @@ export function DatabaseDebug() {
   // Mutation for manual connection test
   const testConnection = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('GET', '/api/health');
+      const res = await fetch('/api/health');
+      if (!res.ok) throw new Error('Connection failed');
       return res.json();
     },
     onSuccess: (data) => {

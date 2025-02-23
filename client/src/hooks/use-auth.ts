@@ -4,11 +4,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { InsertUser } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from 'react'; // Added import for useState and useEffect
 
 interface AuthState {
   user: { id: number; username: string } | null;
   isLoading: boolean;
   error: string | null;
+  isOnline: boolean; // Added isOnline to the AuthState
 }
 
 interface AuthStore extends AuthState {
@@ -24,6 +26,7 @@ export const useAuth = create<AuthStore>()(
       user: null,
       isLoading: false,
       error: null,
+      isOnline: navigator.onLine, // Initialize isOnline
 
       login: async (username: string, password: string) => {
         console.log('Attempting login...', { username });
@@ -111,6 +114,35 @@ export const useAuth = create<AuthStore>()(
 export function useAuthMutations() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const updateOnlineStatus = () => {
+      const online = navigator.onLine;
+      console.log('Network status changed:', online ? 'online' : 'offline');
+      setIsOnline(online);
+    };
+
+    updateOnlineStatus();
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // Test connection on mount and status change
+    if (navigator.onLine) {
+      fetch('/api/health')
+        .then(res => res.json())
+        .then(data => {
+          setIsOnline(data.status === 'healthy');
+        })
+        .catch(() => setIsOnline(false));
+    }
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+  }, []);
+
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
