@@ -20,7 +20,7 @@ interface AuthStore extends AuthState {
 
 export const useAuth = create<AuthStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       isLoading: false,
       error: null,
@@ -90,7 +90,7 @@ export const useAuth = create<AuthStore>()(
         setItem: async (name, value) => {
           try {
             localStorage.setItem(name, JSON.stringify(value));
-            console.log('Saved auth to storage:', { name, value: 'Stored' });
+            console.log('Saved auth to storage:', { name });
           } catch (error) {
             console.error('Failed to save auth to storage:', error);
           }
@@ -121,7 +121,14 @@ export function useAuthMutations() {
     onSuccess: (user) => {
       console.log('Login mutation successful:', user);
       useAuth.setState({ user });
+      // Invalidate and refetch all user data after successful login
       queryClient.invalidateQueries({ queryKey: ['/api/counts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/achievements'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      toast({
+        title: 'Welcome back!',
+        description: `Logged in as ${user.username}`,
+      });
     },
     onError: (error: Error) => {
       console.error('Login mutation failed:', error);
@@ -142,7 +149,10 @@ export function useAuthMutations() {
     onSuccess: (user) => {
       console.log('Register mutation successful:', user);
       useAuth.setState({ user });
+      // Initialize new user data
       queryClient.invalidateQueries({ queryKey: ['/api/counts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/achievements'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
       toast({
         title: 'Welcome!',
         description: 'Your account has been created successfully.',
@@ -166,7 +176,12 @@ export function useAuthMutations() {
     onSuccess: () => {
       console.log('Logout mutation successful');
       useAuth.setState({ user: null });
-      queryClient.invalidateQueries();
+      // Clear all queries from the cache on logout
+      queryClient.clear();
+      toast({
+        title: 'Goodbye!',
+        description: 'You have been logged out successfully.',
+      });
     },
     onError: (error: Error) => {
       console.error('Logout mutation failed:', error);
