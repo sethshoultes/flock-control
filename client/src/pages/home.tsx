@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 import { useAuth } from "@/hooks/use-auth";
 import type { Count } from "@shared/schema";
+import { Loader2 } from "lucide-react";
 
 interface CountsResponse {
   counts: Count[];
@@ -32,14 +33,16 @@ export default function Home() {
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
 
-  // Fetch counts only if user is authenticated
-  const { data: countsData } = useQuery<CountsResponse>({
+  // Fetch counts for authenticated users
+  const { data: countsData, isLoading: isLoadingCounts } = useQuery<CountsResponse>({
     queryKey: ["/api/counts"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/counts");
       return res.json();
     },
-    enabled: !!user // Only fetch if user is logged in
+    enabled: !!user, // Only fetch if user is logged in
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    retry: 3, // Retry failed requests 3 times
   });
 
   const analyzeMutation = useMutation<
@@ -159,7 +162,13 @@ export default function Home() {
           <CardTitle>History</CardTitle>
         </CardHeader>
         <CardContent>
-          <CountHistory counts={countsData?.counts || []} />
+          {isLoadingCounts ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <CountHistory counts={countsData?.counts || []} />
+          )}
         </CardContent>
       </Card>
     </div>
