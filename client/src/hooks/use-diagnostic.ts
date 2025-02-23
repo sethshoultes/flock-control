@@ -2,12 +2,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "./use-auth";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "./use-toast";
+import type { Count } from "@shared/schema";
 
 interface SystemInfo {
   userAgent: string;
   timestamp: string;
   url: string;
   isOnline: boolean;
+  ipAddress?: string;
 }
 
 interface DiagnosticReport {
@@ -16,9 +18,10 @@ interface DiagnosticReport {
     isAuthenticated: boolean;
     hasError: boolean;
     lastError?: string;
+    username?: string;
   };
   appState: {
-    counts: number;
+    counts: Count[];
     showTutorial: boolean;
   };
   healthCheck?: {
@@ -33,27 +36,56 @@ export function useDiagnostic() {
   const store = useAppStore();
   const { toast } = useToast();
 
-  const collectSystemInfo = (): SystemInfo => ({
-    userAgent: navigator.userAgent,
-    timestamp: new Date().toISOString(),
-    url: window.location.href,
-    isOnline: navigator.onLine,
-  });
+  const collectSystemInfo = async (): Promise<SystemInfo> => {
+    // Get IP address from ipify API
+    let ipAddress;
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      ipAddress = data.ip;
+    } catch (error) {
+      console.error('Failed to fetch IP address:', error);
+    }
+
+    return {
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      isOnline: navigator.onLine,
+      ipAddress,
+    };
+  };
 
   const generateReport = async (): Promise<DiagnosticReport> => {
     // Collect system information
-    const systemInfo = collectSystemInfo();
+    const systemInfo = await collectSystemInfo();
 
-    // Collect auth state
+    // Collect auth state with username
     const authState = {
       isAuthenticated: !!user,
       hasError: !!authError,
       lastError: authError?.message,
+      username: user?.username,
     };
 
-    // Collect app state
+    // Collect app state including counts
+    let counts: Count[] = [];
+    if (user) {
+      try {
+        const res = await apiRequest("GET", "/api/counts");
+        if (res.ok) {
+          const data = await res.json();
+          counts = data.counts;
+        }
+      } catch (error) {
+        console.error('Failed to fetch counts for diagnostic:', error);
+      }
+    } else {
+      counts = store.counts;
+    }
+
     const appState = {
-      counts: store.counts.length,
+      counts,
       showTutorial: store.showTutorial,
     };
 
