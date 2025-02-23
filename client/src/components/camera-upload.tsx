@@ -139,7 +139,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
   };
 
   return (
-    <div className="relative min-h-[400px] bg-black rounded-lg overflow-hidden">
+    <div className="relative min-h-[400px] bg-black dark:bg-gray-950 rounded-lg overflow-hidden">
       {isCapturing ? (
         <>
           <video
@@ -154,7 +154,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
               disabled={isLoading}
               variant="default"
               size="lg"
-              className="bg-green-500 hover:bg-green-600 text-white font-bold"
+              className="bg-green-500 hover:bg-green-600 text-white font-bold dark:bg-green-600 dark:hover:bg-green-700"
             >
               <Camera className="h-6 w-6 mr-2" />
               Take Photo
@@ -162,13 +162,13 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
           </div>
         </>
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-muted/50 dark:bg-muted/10">
           <Button
             onClick={startCamera}
             disabled={isLoading}
             variant="default"
             size="lg"
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold min-w-[200px]"
+            className="bg-blue-500 hover:bg-blue-600 text-white font-bold min-w-[200px] dark:bg-blue-600 dark:hover:bg-blue-700"
           >
             <Camera className="h-6 w-6 mr-2" />
             Start Camera
@@ -187,7 +187,7 @@ export function CameraUpload({ onImageCapture, isLoading }: CameraUploadProps) {
             disabled={isLoading}
             variant="outline"
             size="lg"
-            className="bg-white hover:bg-gray-100 min-w-[200px]"
+            className="bg-white hover:bg-gray-100 min-w-[200px] dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-100"
           >
             <Upload className="h-6 w-6 mr-2" />
             Upload Images
