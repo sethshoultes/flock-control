@@ -1,9 +1,9 @@
 import { db } from "./db";
 import { achievements, userAchievements, counts, type Achievement } from "@shared/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, notInArray } from "drizzle-orm";
 import { Award, Target, Crown, Star, Bird } from "lucide-react";
 
-// Define initial achievements
+// Define initial achievements (unchanged)
 export const INITIAL_ACHIEVEMENTS = [
   {
     name: "Novice Counter",
@@ -211,6 +211,7 @@ export class AchievementService {
   async getUserAchievements(userId: number) {
     console.log(`Getting achievements for user ${userId}`);
     try {
+      // Get earned achievements
       const userAchieved = await db
         .select({
           achievement: achievements,
@@ -220,13 +221,33 @@ export class AchievementService {
         .innerJoin(achievements, eq(achievements.id, userAchievements.achievementId))
         .where(eq(userAchievements.userId, userId));
 
-      return userAchieved.map(({ achievement, earnedAt }) => ({
-        ...achievement,
-        earnedAt
-      }));
+      // Get earned achievement IDs
+      const earnedIds = userAchieved.map(ua => ua.achievement.id);
+
+      // Get available (unearned) achievements
+      const availableAchievements = await db
+        .select()
+        .from(achievements)
+        .where(
+          notInArray(
+            achievements.id,
+            earnedIds
+          )
+        );
+
+      return {
+        achievements: userAchieved.map(({ achievement, earnedAt }) => ({
+          ...achievement,
+          earnedAt
+        })),
+        availableAchievements
+      };
     } catch (error) {
       console.error('Error getting user achievements:', error);
-      return [];
+      return {
+        achievements: [],
+        availableAchievements: []
+      };
     }
   }
 }
