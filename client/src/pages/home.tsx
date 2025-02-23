@@ -33,16 +33,32 @@ export default function Home() {
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
 
-  // Fetch counts for authenticated users
+  // Enhanced error handling and logging for the counts query
   const { data: countsData, isLoading: isLoadingCounts } = useQuery<CountsResponse>({
     queryKey: ["/api/counts"],
     queryFn: async () => {
+      console.log('Fetching counts for user:', user?.id);
       const res = await apiRequest("GET", "/api/counts");
-      return res.json();
+      if (!res.ok) {
+        const error = await res.json();
+        console.error('Failed to fetch counts:', error);
+        throw new Error(error.error || 'Failed to fetch counts');
+      }
+      const data = await res.json();
+      console.log(`Retrieved ${data.counts.length} counts for user ${user?.id}`);
+      return data;
     },
     enabled: !!user, // Only fetch if user is logged in
     staleTime: 30000, // Consider data fresh for 30 seconds
     retry: 3, // Retry failed requests 3 times
+    onError: (error: Error) => {
+      console.error('Error fetching counts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load count history. Please try refreshing the page.",
+        variant: "destructive",
+      });
+    },
   });
 
   const analyzeMutation = useMutation<

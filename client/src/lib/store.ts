@@ -1,14 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { get, set } from 'idb-keyval';
+import { get, set, del } from 'idb-keyval';
 import type { Count } from '@shared/schema';
 
-// Unified state interface
 interface AppState {
   // Count related state
   counts: Count[];
-
-  // Tutorial state
   showTutorial: boolean;
   tutorialLoading: boolean;
 
@@ -35,9 +32,14 @@ export const useAppStore = create<AppState>()(
 
       // Actions
       addCount: (count: Count) => {
-        set((state: AppState) => ({
-          counts: [count, ...state.counts]
-        }));
+        set((state: AppState) => {
+          // Only update local storage for guest users (userId = 0)
+          if (count.userId === 0) {
+            return { counts: [count, ...state.counts] };
+          }
+          // For authenticated users, let TanStack Query handle the cache
+          return state;
+        });
       },
 
       clearCounts: () => {
@@ -45,21 +47,35 @@ export const useAppStore = create<AppState>()(
       },
 
       importCounts: (counts: Count[]) => {
-        set({ counts });
+        // Only store counts locally for guest users
+        const guestCounts = counts.filter(count => count.userId === 0);
+        set({ counts: guestCounts });
       },
 
       updateCount: (id: string | number, updates: Partial<Count>) => {
-        set((state: AppState) => ({
-          counts: state.counts.map(count =>
-            count.id.toString() === id.toString() ? { ...count, ...updates } : count
-          )
-        }));
+        set((state: AppState) => {
+          // Only update local storage for guest counts
+          const count = state.counts.find(c => c.id.toString() === id.toString());
+          if (count && count.userId === 0) {
+            return {
+              counts: state.counts.map(c =>
+                c.id.toString() === id.toString() ? { ...c, ...updates } : c
+              )
+            };
+          }
+          return state;
+        });
       },
 
       deleteCounts: (ids: (string | number)[]) => {
-        set((state: AppState) => ({
-          counts: state.counts.filter(count => !ids.includes(count.id))
-        }));
+        set((state: AppState) => {
+          // Only delete from local storage for guest counts
+          return {
+            counts: state.counts.filter(count => 
+              count.userId !== 0 || !ids.includes(count.id)
+            )
+          };
+        });
       },
 
       completeTutorial: () => {
@@ -99,7 +115,7 @@ export const useAppStore = create<AppState>()(
     {
       name: 'chicken-counter-storage',
       partialize: (state) => ({
-        counts: state.counts,
+        counts: state.counts.filter(count => count.userId === 0), // Only persist guest counts
         showTutorial: state.showTutorial
       }),
       storage: {
@@ -123,7 +139,7 @@ export const useAppStore = create<AppState>()(
         },
         removeItem: async (name) => {
           try {
-            await set(name, undefined);
+            await del(name);
             console.log('Removed store data:', { name });
           } catch (error) {
             console.error('Failed to remove from IndexedDB:', error);
