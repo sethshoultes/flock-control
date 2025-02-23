@@ -186,6 +186,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = (req.user as any).id;
       console.log('Fetching counts for user:', userId);
+      console.log('User session:', req.session);
+      console.log('Auth status:', req.isAuthenticated());
       const counts = await storage.getCounts(userId);
       console.log(`Retrieved ${counts.length} counts for user ${userId}`);
       res.json({ counts });

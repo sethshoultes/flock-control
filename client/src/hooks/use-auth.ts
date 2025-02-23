@@ -117,6 +117,7 @@ export function useAuthMutations() {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
+      console.log('Login attempt with credentials:', credentials.username);
       console.log('Login mutation started:', { username: credentials.username });
       const res = await apiRequest('POST', '/api/login', credentials);
       return res.json();
