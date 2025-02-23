@@ -80,10 +80,10 @@ export function AchievementsDisplay() {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {earnedAchievements.map(achievement => renderAchievement(achievement, true))}
+        {Array.isArray(earnedAchievements) && earnedAchievements.map(achievement => renderAchievement(achievement, true))}
       </div>
 
-      {availableAchievements.length > 0 && (
+      {Array.isArray(availableAchievements) && availableAchievements.length > 0 && (
         <>
           <h3 className="text-lg font-semibold text-foreground">Available Achievements</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
