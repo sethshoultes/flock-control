@@ -2,12 +2,14 @@ import { DatabaseDebug } from "@/components/database-debug";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
-import { BookOpen } from "lucide-react";
+import { BookOpen, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useDiagnostic } from "@/hooks/use-diagnostic";
 
 export default function DevTools() {
   const store = useAppStore();
   const { toast } = useToast();
+  const { downloadReport } = useDiagnostic();
 
   const handleResetTutorial = async () => {
     try {
@@ -52,6 +54,23 @@ export default function DevTools() {
             >
               <BookOpen className="h-4 w-4 mr-2 text-purple-600" />
               Reset Tutorial
+            </Button>
+          </div>
+
+          {/* Diagnostic Report */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Diagnostics</h3>
+            <p className="text-sm text-muted-foreground">
+              Generate a report containing system state and diagnostic information
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadReport}
+              className="bg-blue-100 hover:bg-blue-200"
+            >
+              <FileDown className="h-4 w-4 mr-2 text-blue-600" />
+              Download Diagnostic Report
             </Button>
           </div>
         </CardContent>
