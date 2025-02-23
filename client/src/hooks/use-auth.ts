@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import type { InsertUser } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react'; // Added import for useState and useEffect
@@ -30,6 +30,7 @@ export const useAuth = create<AuthStore>()(
 
       login: async (username: string, password: string) => {
         console.log('Attempting login...', { username });
+        await queryClient.invalidateQueries({ queryKey: ['/api/counts'] });
         set({ isLoading: true, error: null });
         try {
           const res = await apiRequest('POST', '/api/login', { username, password });
