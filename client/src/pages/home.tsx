@@ -33,7 +33,6 @@ export default function Home() {
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
 
-  // Query for authenticated user counts
   const { data: countsData, isLoading: isLoadingCounts } = useQuery<CountsResponse>({
     queryKey: ["/api/counts"],
     queryFn: async () => {
@@ -51,7 +50,7 @@ export default function Home() {
         throw error;
       }
     },
-    enabled: !!user, // Only run query when user is logged in
+    enabled: !!user,
   });
 
   const analyzeMutation = useMutation({
@@ -83,7 +82,6 @@ export default function Home() {
       console.log('Analysis successful, processing results');
       data.forEach(result => {
         if (result.count) {
-          // Only store in local state if not authenticated
           if (!user) {
             store.addCount(result.count);
           }
@@ -91,10 +89,8 @@ export default function Home() {
       });
 
       if (user) {
-        // For authenticated users, refresh the server-side counts
         queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
 
-        // Show achievement notifications with enhanced styling
         data.forEach(result => {
           if (result.newAchievements?.length) {
             result.newAchievements.forEach(achievement => {
@@ -106,7 +102,7 @@ export default function Home() {
                     <p className="text-sm text-muted-foreground">{achievement.description}</p>
                   </div>
                 ),
-                duration: 5000, // Show for 5 seconds
+                duration: 5000,
               });
             });
           }
@@ -139,12 +135,10 @@ export default function Home() {
     analyzeMutation.mutate(base64Images);
   };
 
-  // Early return while tutorial state is loading
   if (store.tutorialLoading) {
     return null;
   }
 
-  // Get counts based on authentication status
   const counts = user ? countsData?.counts || [] : store.counts;
 
   return (
@@ -158,7 +152,7 @@ export default function Home() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+          <CardTitle className="text-center text-3xl font-bold text-foreground">
             Flock Counter {!user && "(Guest Mode)"}
           </CardTitle>
         </CardHeader>
@@ -183,7 +177,7 @@ export default function Home() {
 
       <Card>
         <CardHeader>
-          <CardTitle>History</CardTitle>
+          <CardTitle className="text-foreground">History</CardTitle>
         </CardHeader>
         <CardContent>
           {user && isLoadingCounts ? (

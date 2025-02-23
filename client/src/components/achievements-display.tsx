@@ -29,43 +29,32 @@ export function AchievementsDisplay() {
   }
 
   return (
-    <Card className="bg-background">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Award className="h-5 w-5 text-primary" />
-          Achievements
-        </CardTitle>
-        <CardDescription>
-          Your counting milestones
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {achievements.map((achievement: Achievement & { earnedAt: string }) => {
-            const Icon = iconMap[achievement.icon] || Award;
-            return (
-              <Card key={achievement.id} className="bg-muted/50 dark:bg-muted/10">
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-4">
-                    <div className="rounded-full bg-primary/10 p-2 dark:bg-primary/20">
-                      <Icon className="h-6 w-6 text-primary dark:text-primary/90" />
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-medium text-foreground">{achievement.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {achievement.description}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Earned {format(new Date(achievement.earnedAt), 'MMM d, yyyy')}
-                      </p>
-                    </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {achievements.map((achievement: Achievement & { earnedAt: string }) => {
+          const Icon = iconMap[achievement.icon] || Award;
+          return (
+            <Card key={achievement.id} className="bg-card border-2 border-border/50 hover:border-border/80 transition-colors">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-full bg-primary/10 p-2">
+                    <Icon className="h-6 w-6 text-primary" />
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-medium text-card-foreground">{achievement.name}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {achievement.description}
+                    </p>
+                    <p className="text-xs text-muted-foreground/80">
+                      Earned {format(new Date(achievement.earnedAt), 'MMM d, yyyy')}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
   );
 }

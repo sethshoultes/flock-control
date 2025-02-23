@@ -22,7 +22,7 @@ export function Header() {
       <div className="container max-w-2xl mx-auto p-4 flex items-center justify-between">
         <h1 
           onClick={() => setLocation("/")} 
-          className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent cursor-pointer"
+          className="text-xl font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
         >
           Flock Counter
         </h1>
