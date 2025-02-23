@@ -21,7 +21,7 @@ interface DiagnosticReport {
     username?: string;
   };
   appState: {
-    counts: Array<Omit<Count, 'image'>>;
+    counts: Array<Omit<Count, 'image' | 'imageUrl'>>;
     showTutorial: boolean;
   };
   healthCheck?: {
@@ -75,15 +75,15 @@ export function useDiagnostic() {
         const res = await apiRequest("GET", "/api/counts");
         if (res.ok) {
           const data = await res.json();
-          // Remove image data from counts
-          counts = data.counts.map(({ image, ...count }) => count);
+          // Remove image and imageUrl data from counts
+          counts = data.counts.map(({ image, imageUrl, ...count }) => count);
         }
       } catch (error) {
         console.error('Failed to fetch counts for diagnostic:', error);
       }
     } else {
-      // Remove image data from local counts
-      counts = store.counts.map(({ image, ...count }) => count);
+      // Remove image and imageUrl data from local counts
+      counts = store.counts.map(({ image, imageUrl, ...count }) => count);
     }
 
     const appState = {
