@@ -14,34 +14,29 @@ declare module "express-session" {
 
 export function setupAuth(app: Express) {
   // Session middleware
-  const isProduction = process.env.NODE_ENV === "production" || process.env.DEPLOYMENT === "true";
+  const isProduction = process.env.NODE_ENV === "production";
   console.log('Setting up auth with production mode:', isProduction);
 
   app.set("trust proxy", 1);
 
+  // Ensure cookie settings work in development and production
   const sessionSettings: session.SessionOptions = {
     store: storage.sessionStore,
     secret: process.env.SESSION_SECRET || "dev-secret-key",
     resave: false,
     saveUninitialized: false,
-    name: 'chicken_counter_session', // Custom name to avoid conflicts
-    proxy: true, // Required for secure cookies behind a proxy
+    name: 'chicken_counter_session',
     cookie: {
-      secure: isProduction, // Must be true in production
+      secure: false, // Set to false for development
       httpOnly: true,
-      sameSite: isProduction ? 'none' : 'lax', // Required for cross-origin in production
+      sameSite: 'lax',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      domain: isProduction ? '.replit.app' : undefined
     },
   };
 
   console.log('Session settings:', {
     isProduction,
-    cookieSettings: {
-      secure: sessionSettings.cookie?.secure,
-      sameSite: sessionSettings.cookie?.sameSite,
-      domain: sessionSettings.cookie?.domain
-    }
+    cookieSettings: sessionSettings.cookie
   });
 
   app.use(session(sessionSettings));
@@ -50,7 +45,7 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Configure Passport's Local Strategy with better error handling
+  // Configure Passport's Local Strategy
   passport.use(new LocalStrategy(async (username: string, password: string, done) => {
     try {
       console.log('Attempting authentication for user:', username);
@@ -68,12 +63,12 @@ export function setupAuth(app: Express) {
   }));
 
   // Serialize user for the session
-  passport.serializeUser((user: any, done) => {
+  passport.serializeUser((user: Express.User, done) => {
     console.log('Serializing user:', user.id);
     done(null, user.id);
   });
 
-  // Deserialize user from the session with better error handling
+  // Deserialize user from the session
   passport.deserializeUser(async (id: number, done) => {
     try {
       console.log('Deserializing user:', id);
@@ -82,27 +77,13 @@ export function setupAuth(app: Express) {
         console.log('User not found during deserialization:', id);
         return done(null, false);
       }
+      console.log('User deserialized successfully:', user.id);
       done(null, user);
     } catch (error) {
       console.error('Deserialization error:', error);
       done(error);
     }
   });
-
-  // Add CORS headers for authentication endpoints in production
-  if (isProduction) {
-    app.use((req, res, next) => {
-      const origin = req.get('origin');
-      // Only allow requests from .replit.app domains
-      if (origin?.endsWith('.replit.app')) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-      }
-      next();
-    });
-  }
 
   // Authentication routes with improved error handling
   app.post("/api/register", async (req, res) => {
@@ -115,10 +96,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ error: "Username already taken" });
       }
 
-      const user = await storage.createUser({
-        ...data,
-        role: UserRole.USER // Ensure new users get the default user role
-      });
+      const user = await storage.createUser(data);
 
       // Log in the user after registration
       req.login(user, (err) => {
@@ -174,28 +152,34 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/logout", (req, res) => {
-    const username = (req.user as User)?.username;
-    console.log('Logout attempt for user:', username);
-    req.logout((err) => {
-      if (err) {
-        console.error('Logout error:', err);
-        res.status(500).json({ error: "Failed to logout" });
-      } else {
+    console.log('Logout request received');
+    if (req.isAuthenticated()) {
+      console.log('User was authenticated, performing logout');
+      const username = (req.user as User)?.username;
+      req.logout((err) => {
+        if (err) {
+          console.error('Logout error:', err);
+          return res.status(500).json({ error: "Failed to logout" });
+        }
         console.log('Logout successful for:', username);
         req.session.destroy((err) => {
           if (err) {
             console.error('Session destruction error:', err);
           }
+          res.clearCookie('chicken_counter_session');
           res.sendStatus(200);
         });
-      }
-    });
+      });
+    } else {
+      console.log('Logout requested but user was not authenticated');
+      res.sendStatus(200);
+    }
   });
 
-  // User profile and settings endpoints
+  // User data endpoint
   app.get("/api/me", requireAuth, (req, res) => {
+    console.log('Fetching user data, isAuthenticated:', req.isAuthenticated());
     const user = req.user as User;
-    console.log('Fetching profile for user:', user.username);
     res.json({
       id: user.id,
       username: user.username,
@@ -204,46 +188,22 @@ export function setupAuth(app: Express) {
       createdAt: user.createdAt,
     });
   });
-
-  app.get("/api/settings", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as User;
-      console.log('Fetching settings for user:', user.username);
-      const settings = await storage.getUserSettings(user.id);
-      res.json(settings);
-    } catch (error) {
-      console.error('Settings fetch error:', error);
-      res.status(500).json({ error: "Failed to fetch user settings" });
-    }
-  });
-
-  app.patch("/api/settings", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as User;
-      console.log('Updating settings for user:', user.username);
-      const settings = await storage.updateUserSettings(user.id, req.body);
-      res.json(settings);
-    } catch (error) {
-      console.error('Settings update error:', error);
-      res.status(500).json({ error: "Failed to update user settings" });
-    }
-  });
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  console.log('Auth check - isAuthenticated:', req.isAuthenticated());
   if (!req.isAuthenticated()) {
     console.log('Unauthorized access attempt');
-    res.status(401).json({ error: "Authentication required" });
-    return;
+    return res.status(401).json({ error: "Authentication required" });
   }
   next();
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  console.log('Admin check - isAuthenticated:', req.isAuthenticated(), 'role:', (req.user as User)?.role);
   if (!req.isAuthenticated() || (req.user as User).role !== UserRole.ADMIN) {
     console.log('Unauthorized admin access attempt');
-    res.status(403).json({ error: "Admin access required" });
-    return;
+    return res.status(403).json({ error: "Admin access required" });
   }
   next();
 }
