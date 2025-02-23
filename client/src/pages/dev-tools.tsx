@@ -46,17 +46,6 @@ export default function DevTools() {
             <DatabaseDebug />
           </div>
 
-          {/* User Data Inspector - Show for all logged in users */}
-          {user && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">User Data Inspector</h3>
-              <p className="text-sm text-muted-foreground">
-                View your user data and count history
-              </p>
-              <UserInspector />
-            </div>
-          )}
-
           {/* Tutorial Reset */}
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Tutorial</h3>
@@ -87,6 +76,17 @@ export default function DevTools() {
               Download Diagnostic Report
             </Button>
           </div>
+
+          {/* User Data Inspector - Show for all logged in users */}
+          {user && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">User Data Inspector</h3>
+              <p className="text-sm text-muted-foreground">
+                View your user data and count history
+              </p>
+              <UserInspector />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
