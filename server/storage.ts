@@ -61,18 +61,25 @@ export class DatabaseStorage implements IStorage {
         throw new Error("Username already taken");
       }
 
-      const hashedPassword = await hashPassword(insertUser.password);
-      const [user] = await db
-        .insert(users)
-        .values({
-          ...insertUser,
-          password: hashedPassword,
-        })
-        .returning();
+      // Start a transaction to create both user and settings
+      const [user] = await db.transaction(async (tx) => {
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            ...insertUser,
+            password: await hashPassword(insertUser.password),
+          })
+          .returning();
 
-      // Create default settings for the user
-      await db.insert(userSettings).values({
-        userId: user.id,
+        // Create default settings for the user
+        await tx.insert(userSettings).values({
+          userId: newUser.id,
+          theme: 'light',
+          notificationsEnabled: true,
+          preferences: {},
+        });
+
+        return [newUser];
       });
 
       console.log('User created successfully:', user.id);

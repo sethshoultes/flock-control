@@ -46,7 +46,7 @@ export function setupAuth(app: Express) {
   }));
 
   // Serialize user for the session
-  passport.serializeUser((user: User, done) => {
+  passport.serializeUser((user: any, done) => {
     done(null, user.id);
   });
 
@@ -70,7 +70,10 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ error: "Username already taken" });
       }
 
-      const user = await storage.createUser(data);
+      const user = await storage.createUser({
+        ...data,
+        role: UserRole.USER // Ensure new users get the default user role
+      });
 
       // Log in the user after registration
       req.login(user, (err) => {
@@ -160,7 +163,6 @@ export function setupAuth(app: Express) {
   });
 }
 
-// Middleware to check if user is authenticated
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Authentication required" });
@@ -169,7 +171,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-// Middleware to check if user is an admin
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated() || (req.user as User).role !== UserRole.ADMIN) {
     res.status(403).json({ error: "Admin access required" });

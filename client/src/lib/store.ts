@@ -43,7 +43,6 @@ interface PendingUpload {
 const TUTORIAL_KEY = 'chicken-counter-tutorial-shown';
 const STORAGE_KEY = 'chicken-counter-storage';
 
-// Create the store with proper initialization
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -53,9 +52,8 @@ export const useAppStore = create<AppState>()(
       isOnline: true,
       isSyncing: false,
       showTutorial: true,
-      tutorialLoading: false,
+      tutorialLoading: true,
 
-      // Initialize tutorial state
       initializeTutorial: async () => {
         try {
           const hasSeenTutorial = await get(TUTORIAL_KEY);
@@ -69,14 +67,13 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // Count actions
-      addCount: (count) => {
+      addCount: (count: Count) => {
         set((state) => ({
           counts: [count, ...state.counts]
         }));
       },
 
-      queueForUpload: (image) => {
+      queueForUpload: (image: string) => {
         console.log('Queueing image for upload (offline mode)');
         set((state) => ({
           pendingUploads: [
@@ -128,8 +125,7 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      // Online/Offline management
-      setOnline: (status) => {
+      setOnline: (status: boolean) => {
         console.log('Setting online status:', status);
         set({ isOnline: status });
         if (status) {
@@ -137,7 +133,7 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      removePendingUpload: (id) => {
+      removePendingUpload: (id: string) => {
         set((state) => ({
           pendingUploads: state.pendingUploads.filter(upload => upload.id !== id)
         }));
@@ -147,11 +143,11 @@ export const useAppStore = create<AppState>()(
         set({ counts: [], pendingUploads: [] });
       },
 
-      importCounts: (counts) => {
+      importCounts: (counts: Count[]) => {
         set({ counts });
       },
 
-      updateCount: (id, updates) => {
+      updateCount: (id: string | number, updates: Partial<Count>) => {
         set((state) => ({
           counts: state.counts.map(count =>
             count.id.toString() === id.toString() ? { ...count, ...updates } : count
@@ -159,7 +155,7 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      deleteCounts: (ids) => {
+      deleteCounts: (ids: (string | number)[]) => {
         set((state) => ({
           counts: state.counts.filter(count => !ids.includes(count.id))
         }));
@@ -176,9 +172,7 @@ export const useAppStore = create<AppState>()(
 
       resetTutorial: async () => {
         try {
-          // First update IndexedDB
           await set(TUTORIAL_KEY, false);
-          // Then update the store state
           set({ showTutorial: true });
         } catch (error) {
           console.error('Failed to reset tutorial:', error);
@@ -216,13 +210,9 @@ export const useAppStore = create<AppState>()(
   )
 );
 
-// Initialize app state
 if (typeof window !== 'undefined') {
-  // Set up online/offline listeners
   window.addEventListener('online', () => useAppStore.getState().setOnline(true));
   window.addEventListener('offline', () => useAppStore.getState().setOnline(false));
-
-  // Initial state setup
   useAppStore.getState().setOnline(navigator.onLine);
   useAppStore.getState().initializeTutorial();
 }
