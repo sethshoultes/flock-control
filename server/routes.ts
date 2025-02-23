@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { OpenAI } from "openai";
 import { insertCountSchema } from "@shared/schema";
-import { setupAuth, requireAuth } from "./auth";
+import { setupAuth, requireAuth, requireAdmin } from "./auth";
 import * as crypto from 'crypto';
 import { and, inArray } from "drizzle-orm";
 import { achievementService } from "./achievements";
@@ -209,6 +209,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error fetching achievements:', error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       res.status(500).json({ error: message });
+    }
+  });
+
+  // Add admin user inspection endpoint
+  app.get("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const counts = await storage.getCounts(userId);
+
+      res.json({
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          createdAt: user.createdAt,
+        },
+        counts,
+      });
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to fetch user data" 
+      });
     }
   });
 

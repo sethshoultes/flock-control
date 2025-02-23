@@ -1,15 +1,18 @@
 import { DatabaseDebug } from "@/components/database-debug";
+import { UserInspector } from "@/components/user-inspector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
 import { BookOpen, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDiagnostic } from "@/hooks/use-diagnostic";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function DevTools() {
   const store = useAppStore();
   const { toast } = useToast();
   const { downloadReport } = useDiagnostic();
+  const { user } = useAuth();
 
   const handleResetTutorial = async () => {
     try {
@@ -42,6 +45,17 @@ export default function DevTools() {
             <h3 className="text-sm font-medium">Database Connection</h3>
             <DatabaseDebug />
           </div>
+
+          {/* User Inspector - Only show for admin users */}
+          {user?.role === 'admin' && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">User Inspector</h3>
+              <p className="text-sm text-muted-foreground">
+                Inspect user data and count history
+              </p>
+              <UserInspector />
+            </div>
+          )}
 
           {/* Tutorial Reset */}
           <div className="space-y-2">
