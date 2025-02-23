@@ -33,47 +33,40 @@ export default function Home() {
   const [processingCount, setProcessingCount] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
 
-  // Enhanced error handling and logging for the counts query
+  // Query for authenticated user counts
   const { data: countsData, isLoading: isLoadingCounts } = useQuery<CountsResponse>({
     queryKey: ["/api/counts"],
     queryFn: async () => {
-      console.log('Fetching counts for user:', user?.id);
-      const res = await apiRequest("GET", "/api/counts");
-      if (!res.ok) {
-        const error = await res.json();
-        console.error('Failed to fetch counts:', error);
-        throw new Error(error.error || 'Failed to fetch counts');
+      try {
+        console.log('Fetching counts for authenticated user');
+        const res = await apiRequest("GET", "/api/counts");
+        if (!res.ok) {
+          throw new Error("Failed to fetch counts");
+        }
+        const data = await res.json();
+        console.log(`Retrieved ${data.counts.length} counts`);
+        return data;
+      } catch (error) {
+        console.error('Error fetching counts:', error);
+        throw error;
       }
-      const data = await res.json();
-      console.log(`Retrieved ${data.counts.length} counts for user ${user?.id}`);
-      return data;
     },
-    enabled: !!user, // Only fetch if user is logged in
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    retry: 3, // Retry failed requests 3 times
-    onError: (error: Error) => {
-      console.error('Error fetching counts:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load count history. Please try refreshing the page.",
-        variant: "destructive",
-      });
-    },
+    enabled: !!user, // Only run query when user is logged in
   });
 
-  const analyzeMutation = useMutation<
-    Array<AnalyzeResponse>,
-    Error,
-    string[]
-  >({
+  const analyzeMutation = useMutation({
     mutationFn: async (images: string[]) => {
       setTotalImages(images.length);
       setProcessingCount(0);
 
+      console.log(`Processing ${images.length} images ${user ? 'for authenticated user' : 'in guest mode'}`);
       const results = await Promise.all(
         images.map(async (image) => {
           try {
             const response = await apiRequest("POST", "/api/analyze", { image });
+            if (!response.ok) {
+              throw new Error("Failed to analyze image");
+            }
             const responseData = await response.json();
             setProcessingCount(prev => prev + 1);
             return responseData;
@@ -87,13 +80,18 @@ export default function Home() {
       return results;
     },
     onSuccess: (data) => {
+      console.log('Analysis successful, processing results');
       data.forEach(result => {
         if (result.count) {
-          store.addCount(result.count);
+          // Only store in local state if not authenticated
+          if (!user) {
+            store.addCount(result.count);
+          }
         }
       });
 
       if (user) {
+        // For authenticated users, refresh the server-side counts
         queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
 
         // Show achievement notifications
@@ -120,9 +118,10 @@ export default function Home() {
       setTotalImages(0);
     },
     onError: (error) => {
+      console.error('Analysis mutation error:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: error instanceof Error ? error.message : "Failed to analyze images",
         variant: "destructive",
       });
       setProcessingCount(0);
