@@ -4,26 +4,45 @@ import { persist } from 'zustand/middleware';
 interface ThemeState {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  setTheme: (theme: 'light' | 'dark') => void;
 }
 
 export const useTheme = create<ThemeState>()(
   persist(
     (set) => ({
       theme: 'light',
-      toggleTheme: () => set((state) => {
-        const newTheme = state.theme === 'light' ? 'dark' : 'light';
-        document.documentElement.classList.toggle('dark', newTheme === 'dark');
-        return { theme: newTheme };
-      }),
+      setTheme: (theme: 'light' | 'dark') => {
+        document.documentElement.classList.remove('light', 'dark');
+        document.documentElement.classList.add(theme);
+        set({ theme });
+      },
+      toggleTheme: () => {
+        set((state) => {
+          const newTheme = state.theme === 'light' ? 'dark' : 'light';
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(newTheme);
+          return { theme: newTheme };
+        });
+      },
     }),
     {
       name: 'theme-storage',
+      onRehydrateStorage: () => (state) => {
+        // Apply theme from storage when rehydrating
+        if (state) {
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(state.theme);
+        }
+      },
     }
   )
 );
 
-// Initialize theme from storage on mount
+// Initialize theme based on system preference if no stored theme
 if (typeof window !== 'undefined') {
-  const theme = useTheme.getState().theme;
-  document.documentElement.classList.toggle('dark', theme === 'dark');
+  const storedTheme = localStorage.getItem('theme-storage');
+  if (!storedTheme) {
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    useTheme.getState().setTheme(systemTheme);
+  }
 }
