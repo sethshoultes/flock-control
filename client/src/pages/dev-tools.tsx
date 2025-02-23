@@ -46,12 +46,12 @@ export default function DevTools() {
             <DatabaseDebug />
           </div>
 
-          {/* User Inspector - Only show for admin users */}
-          {user?.role === 'admin' && (
+          {/* User Data Inspector - Show for all logged in users */}
+          {user && (
             <div className="space-y-2">
-              <h3 className="text-sm font-medium">User Inspector</h3>
+              <h3 className="text-sm font-medium">User Data Inspector</h3>
               <p className="text-sm text-muted-foreground">
-                Inspect user data and count history
+                View your user data and count history
               </p>
               <UserInspector />
             </div>
