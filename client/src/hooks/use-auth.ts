@@ -30,13 +30,17 @@ export const useAuth = create<AuthStore>()(
         set({ isLoading: true, error: null });
         try {
           const res = await apiRequest('POST', '/api/login', { username, password });
+          if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'Login failed');
+          }
           const user = await res.json();
           console.log('Login successful:', user);
           set({ user, isLoading: false });
         } catch (error) {
           console.error('Login failed:', error);
           const errorMessage = error instanceof Error ? error.message : 'Login failed';
-          set({ error: errorMessage, isLoading: false });
+          set({ error: errorMessage, isLoading: false, user: null });
           throw new Error(errorMessage);
         }
       },
@@ -46,13 +50,17 @@ export const useAuth = create<AuthStore>()(
         set({ isLoading: true, error: null });
         try {
           const res = await apiRequest('POST', '/api/register', { username, password });
+          if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'Registration failed');
+          }
           const user = await res.json();
           console.log('Registration successful:', user);
           set({ user, isLoading: false });
         } catch (error) {
           console.error('Registration failed:', error);
           const errorMessage = error instanceof Error ? error.message : 'Registration failed';
-          set({ error: errorMessage, isLoading: false });
+          set({ error: errorMessage, isLoading: false, user: null });
           throw new Error(errorMessage);
         }
       },
@@ -61,7 +69,10 @@ export const useAuth = create<AuthStore>()(
         console.log('Attempting logout...');
         set({ isLoading: true, error: null });
         try {
-          await apiRequest('POST', '/api/logout');
+          const res = await apiRequest('POST', '/api/logout');
+          if (!res.ok) {
+            throw new Error('Logout failed');
+          }
           console.log('Logout successful');
           set({ user: null, isLoading: false });
         } catch (error) {
@@ -120,6 +131,10 @@ export function useAuthMutations() {
       console.log('Login attempt with credentials:', credentials.username);
       console.log('Login mutation started:', { username: credentials.username });
       const res = await apiRequest('POST', '/api/login', credentials);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Login failed');
+      }
       return res.json();
     },
     onSuccess: (user) => {
@@ -136,6 +151,7 @@ export function useAuthMutations() {
     },
     onError: (error: Error) => {
       console.error('Login mutation failed:', error);
+      useAuth.setState({ user: null, error: error.message });
       toast({
         title: 'Login failed',
         description: error.message,
@@ -148,6 +164,10 @@ export function useAuthMutations() {
     mutationFn: async (data: InsertUser) => {
       console.log('Register mutation started:', { username: data.username });
       const res = await apiRequest('POST', '/api/register', data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Registration failed');
+      }
       return res.json();
     },
     onSuccess: (user) => {
@@ -164,6 +184,7 @@ export function useAuthMutations() {
     },
     onError: (error: Error) => {
       console.error('Register mutation failed:', error);
+      useAuth.setState({ user: null, error: error.message });
       toast({
         title: 'Registration failed',
         description: error.message,
@@ -175,7 +196,10 @@ export function useAuthMutations() {
   const logoutMutation = useMutation({
     mutationFn: async () => {
       console.log('Logout mutation started');
-      await apiRequest('POST', '/api/logout');
+      const res = await apiRequest('POST', '/api/logout');
+      if (!res.ok) {
+        throw new Error('Logout failed');
+      }
     },
     onSuccess: () => {
       console.log('Logout mutation successful');
