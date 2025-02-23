@@ -3,7 +3,7 @@ import { achievements, userAchievements, counts, type Achievement } from "@share
 import { eq, sql, and } from "drizzle-orm";
 import { Award, Target, Crown, Star, Bird } from "lucide-react";
 
-// Initial achievements remain unchanged
+// Define initial achievements
 export const INITIAL_ACHIEVEMENTS = [
   {
     name: "Novice Counter",
@@ -127,14 +127,14 @@ export class AchievementService {
           .where(eq(counts.userId, userId)),
 
         // Get max consecutive days
-        db.select({
+        db.select({ 
           max: sql<number>`
             max(consecutive_days)
             from (
-              select
+              select 
                 count(*) as consecutive_days
               from (
-                select
+                select 
                   date(timestamp),
                   date(timestamp) - make_interval(days => row_number() over (order by date(timestamp))) as grp
                 from (
@@ -211,39 +211,22 @@ export class AchievementService {
   async getUserAchievements(userId: number) {
     console.log(`Getting achievements for user ${userId}`);
     try {
-      // Get all achievements
-      const allAchievements = await db.select().from(achievements);
-
-      // Get user's earned achievements with timestamps
-      const earnedAchievements = await db
-        .select()
+      const userAchieved = await db
+        .select({
+          achievement: achievements,
+          earnedAt: userAchievements.earnedAt
+        })
         .from(userAchievements)
+        .innerJoin(achievements, eq(achievements.id, userAchievements.achievementId))
         .where(eq(userAchievements.userId, userId));
 
-      // Convert earned achievements into a Set for quick lookup
-      const earnedSet = new Set(earnedAchievements.map(ua => ua.achievementId));
-
-      // Map earned achievements with their earned timestamps
-      const earned = allAchievements
-        .filter(achievement => earnedSet.has(achievement.id))
-        .map(achievement => ({
-          ...achievement,
-          earnedAt: earnedAchievements.find(ua => ua.achievementId === achievement.id)?.earnedAt
-        }));
-
-      // Get available achievements (not yet earned)
-      const available = allAchievements.filter(achievement => !earnedSet.has(achievement.id));
-
-      return {
-        achievements: earned,
-        availableAchievements: available
-      };
+      return userAchieved.map(({ achievement, earnedAt }) => ({
+        ...achievement,
+        earnedAt
+      }));
     } catch (error) {
       console.error('Error getting user achievements:', error);
-      return {
-        achievements: [],
-        availableAchievements: []
-      };
+      return [];
     }
   }
 }
