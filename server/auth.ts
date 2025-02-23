@@ -2,7 +2,7 @@ import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { insertUserSchema, loginSchema, type User } from "@shared/schema";
+import { insertUserSchema, loginSchema, type User, UserRole } from "@shared/schema";
 import { storage } from "./storage";
 import { z } from "zod";
 
@@ -60,7 +60,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Authentication routes remain the same
+  // Authentication routes
   app.post("/api/register", async (req, res) => {
     try {
       const data = insertUserSchema.parse(req.body);
@@ -80,6 +80,8 @@ export function setupAuth(app: Express) {
         return res.status(201).json({
           id: user.id,
           username: user.username,
+          role: user.role,
+          email: user.email,
           createdAt: user.createdAt,
         });
       });
@@ -93,7 +95,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: any, user: User | false, info: any) => {
       if (err) {
         return res.status(500).json({ error: "Login failed" });
       }
@@ -107,6 +109,8 @@ export function setupAuth(app: Express) {
         return res.json({
           id: user.id,
           username: user.username,
+          role: user.role,
+          email: user.email,
           createdAt: user.createdAt,
         });
       });
@@ -123,12 +127,36 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/me", (req, res) => {
-    if (!req.isAuthenticated()) {
-      res.status(401).json({ error: "Not authenticated" });
-      return;
+  // User profile and settings endpoints
+  app.get("/api/me", requireAuth, (req, res) => {
+    const user = req.user as User;
+    res.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      email: user.email,
+      createdAt: user.createdAt,
+    });
+  });
+
+  app.get("/api/settings", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const settings = await storage.getUserSettings(user.id);
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch user settings" });
     }
-    res.json(req.user);
+  });
+
+  app.patch("/api/settings", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const settings = await storage.updateUserSettings(user.id, req.body);
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user settings" });
+    }
   });
 }
 
@@ -136,6 +164,15 @@ export function setupAuth(app: Express) {
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  next();
+}
+
+// Middleware to check if user is an admin
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated() || (req.user as User).role !== UserRole.ADMIN) {
+    res.status(403).json({ error: "Admin access required" });
     return;
   }
   next();

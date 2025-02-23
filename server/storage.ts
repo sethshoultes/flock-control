@@ -1,4 +1,4 @@
-import { counts, users, type Count, type InsertCount, type User, type InsertUser } from "@shared/schema";
+import { counts, users, userSettings, type Count, type InsertCount, type User, type InsertUser, type UserSettings } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, inArray } from "drizzle-orm";
 import session from "express-session";
@@ -33,6 +33,9 @@ interface IStorage {
   getUserById(id: number): Promise<User | null>;
   getUserByUsername(username: string): Promise<User | null>;
   validateUser(username: string, password: string): Promise<User | null>;
+  updateUser(id: number, updates: Partial<User>): Promise<User>;
+  getUserSettings(userId: number): Promise<UserSettings | null>;
+  updateUserSettings(userId: number, settings: Partial<UserSettings>): Promise<UserSettings>;
   getCounts(userId: number): Promise<Count[]>;
   addCount(userId: number, insertCount: InsertCount): Promise<Count>;
   deleteCounts(userId: number, countIds: number[]): Promise<void>;
@@ -66,6 +69,11 @@ export class DatabaseStorage implements IStorage {
           password: hashedPassword,
         })
         .returning();
+
+      // Create default settings for the user
+      await db.insert(userSettings).values({
+        userId: user.id,
+      });
 
       console.log('User created successfully:', user.id);
       return user;
@@ -114,10 +122,61 @@ export class DatabaseStorage implements IStorage {
       }
 
       const isValid = await comparePasswords(password, user.password);
+      if (isValid) {
+        // Update last login timestamp
+        await db
+          .update(users)
+          .set({ lastLoginAt: new Date() })
+          .where(eq(users.id, user.id));
+      }
       return isValid ? user : null;
     } catch (error) {
       console.error('Password validation error:', error);
       return null;
+    }
+  }
+
+  async updateUser(id: number, updates: Partial<User>): Promise<User> {
+    console.log('Updating user:', id);
+    try {
+      const [updated] = await db
+        .update(users)
+        .set(updates)
+        .where(eq(users.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
+  }
+
+  async getUserSettings(userId: number): Promise<UserSettings | null> {
+    console.log('Getting settings for user:', userId);
+    try {
+      const [settings] = await db
+        .select()
+        .from(userSettings)
+        .where(eq(userSettings.userId, userId));
+      return settings || null;
+    } catch (error) {
+      console.error('Error getting user settings:', error);
+      throw error;
+    }
+  }
+
+  async updateUserSettings(userId: number, settings: Partial<UserSettings>): Promise<UserSettings> {
+    console.log('Updating settings for user:', userId);
+    try {
+      const [updated] = await db
+        .update(userSettings)
+        .set({ ...settings, updatedAt: new Date() })
+        .where(eq(userSettings.userId, userId))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error('Error updating user settings:', error);
+      throw error;
     }
   }
 
