@@ -14,19 +14,26 @@ declare module "express-session" {
 
 export function setupAuth(app: Express) {
   // Session middleware
-  app.use(
-    session({
-      store: storage.sessionStore,
-      secret: process.env.SESSION_SECRET || "dev-secret-key",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      },
-    })
-  );
+  const isProduction = process.env.NODE_ENV === "production" || process.env.DEPLOYMENT === "true";
+
+  app.set("trust proxy", 1);
+
+  const sessionSettings: session.SessionOptions = {
+    store: storage.sessionStore,
+    secret: process.env.SESSION_SECRET || "dev-secret-key",
+    resave: false,
+    saveUninitialized: false,
+    proxy: true,
+    cookie: {
+      secure: isProduction, // Must be true in production
+      httpOnly: true,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
+      domain: isProduction ? '.replit.app' : undefined
+    },
+  };
+
+  app.use(session(sessionSettings));
 
   // Initialize Passport and restore authentication state from session
   app.use(passport.initialize());
