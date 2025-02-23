@@ -94,13 +94,19 @@ export default function Home() {
         // For authenticated users, refresh the server-side counts
         queryClient.invalidateQueries({ queryKey: ["/api/counts"] });
 
-        // Show achievement notifications
+        // Show achievement notifications with enhanced styling
         data.forEach(result => {
           if (result.newAchievements?.length) {
             result.newAchievements.forEach(achievement => {
               toast({
-                title: "Achievement Unlocked! 🏆",
-                description: `${achievement.name} - ${achievement.description}`,
+                title: "🎉 Achievement Unlocked!",
+                description: (
+                  <div className="flex flex-col gap-1">
+                    <p className="font-semibold text-primary">{achievement.name}</p>
+                    <p className="text-sm text-muted-foreground">{achievement.description}</p>
+                  </div>
+                ),
+                duration: 5000, // Show for 5 seconds
               });
             });
           }

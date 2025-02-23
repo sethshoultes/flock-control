@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAuthMutations } from "@/hooks/use-auth";
 import { LogIn, LogOut, User, Trophy, ChevronDown, Wrench } from "lucide-react";
 import { useLocation } from "wouter";
+import { ThemeSelector } from "@/components/theme-selector";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ export function Header() {
 
         {user ? (
           <div className="flex items-center gap-2">
+            <ThemeSelector />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="flex items-center gap-2">
@@ -58,14 +60,17 @@ export function Header() {
             </DropdownMenu>
           </div>
         ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setLocation("/auth")}
-          >
-            <LogIn className="h-4 w-4 mr-2" />
-            Sign In
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeSelector />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/auth")}
+            >
+              <LogIn className="h-4 w-4 mr-2" />
+              Sign In
+            </Button>
+          </div>
         )}
       </div>
     </header>
