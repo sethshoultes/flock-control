@@ -43,7 +43,7 @@ export function DatabaseDebug() {
         message: `Database ${data.database}. ${data.error || ''}`
       };
       setLogs(prev => [newLog, ...prev]);
-      
+
       toast({
         title: data.status === 'healthy' ? 'Connection Success' : 'Connection Error',
         description: `Database is ${data.database}`,
@@ -72,12 +72,23 @@ export function DatabaseDebug() {
         variant="outline"
         size="sm"
         onClick={() => setIsOpen(true)}
-        className={healthData?.status === 'healthy' ? "bg-green-100" : "bg-red-100"}
+        className={`${
+          healthData?.status === 'healthy' 
+            ? "bg-green-100 dark:bg-green-900/20 hover:bg-green-200 dark:hover:bg-green-900/30" 
+            : "bg-red-100 dark:bg-red-900/20 hover:bg-red-200 dark:hover:bg-red-900/30"
+        }`}
       >
         <Database className={`h-4 w-4 mr-2 ${
-          healthData?.status === 'healthy' ? "text-green-600" : "text-red-600"
+          healthData?.status === 'healthy' 
+            ? "text-green-600 dark:text-green-400" 
+            : "text-red-600 dark:text-red-400"
         }`} />
-        Database {healthData?.status === 'healthy' ? 'Connected' : 'Disconnected'}
+        <span className={healthData?.status === 'healthy' 
+          ? "text-green-700 dark:text-green-300" 
+          : "text-red-700 dark:text-red-300"
+        }>
+          Database {healthData?.status === 'healthy' ? 'Connected' : 'Disconnected'}
+        </span>
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -120,11 +131,16 @@ export function DatabaseDebug() {
                       <div
                         key={index}
                         className={`p-3 rounded-lg text-sm ${
-                          log.status === 'success' ? 'bg-green-50' : 'bg-red-50'
+                          log.status === 'success' 
+                            ? 'bg-green-50 dark:bg-green-900/10' 
+                            : 'bg-red-50 dark:bg-red-900/10'
                         }`}
                       >
                         <div className="flex items-start justify-between">
-                          <span className={log.status === 'success' ? 'text-green-700' : 'text-red-700'}>
+                          <span className={log.status === 'success' 
+                            ? 'text-green-700 dark:text-green-300' 
+                            : 'text-red-700 dark:text-red-300'
+                          }>
                             {log.message}
                           </span>
                           <span className="text-xs text-muted-foreground">
