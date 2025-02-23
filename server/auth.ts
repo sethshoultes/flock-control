@@ -24,11 +24,12 @@ export function setupAuth(app: Express) {
     secret: process.env.SESSION_SECRET || "dev-secret-key",
     resave: false,
     saveUninitialized: false,
-    proxy: true,
+    name: 'chicken_counter_session', // Custom name to avoid conflicts
+    proxy: true, // Required for secure cookies behind a proxy
     cookie: {
       secure: isProduction, // Must be true in production
       httpOnly: true,
-      sameSite: isProduction ? 'none' : 'lax',
+      sameSite: isProduction ? 'none' : 'lax', // Required for cross-origin in production
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
       domain: isProduction ? '.replit.app' : undefined
     },
@@ -87,6 +88,21 @@ export function setupAuth(app: Express) {
       done(error);
     }
   });
+
+  // Add CORS headers for authentication endpoints in production
+  if (isProduction) {
+    app.use((req, res, next) => {
+      const origin = req.get('origin');
+      // Only allow requests from .replit.app domains
+      if (origin?.endsWith('.replit.app')) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+      }
+      next();
+    });
+  }
 
   // Authentication routes with improved error handling
   app.post("/api/register", async (req, res) => {
