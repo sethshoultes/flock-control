@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Award, Target, Crown, Star, Bird } from "lucide-react";
 import { format } from "date-fns";
 
-const iconMap: Record<string, React.ComponentType<any>> = {
+const iconMap = {
   Award,
   Target,
   Crown,
@@ -12,13 +12,17 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   Bird
 };
 
-interface AchievementResponse {
-  achievements: (Achievement & { earnedAt?: string })[];
+interface AchievementWithEarnedDate extends Achievement {
+  earnedAt?: string;
+}
+
+interface AchievementsResponse {
+  achievements: AchievementWithEarnedDate[];
   availableAchievements: Achievement[];
 }
 
 export function AchievementsDisplay() {
-  const { data: achievementsData } = useQuery<AchievementResponse>({
+  const { data, isLoading } = useQuery<AchievementsResponse>({
     queryKey: ["/api/achievements"],
     queryFn: async () => {
       const res = await fetch("/api/achievements");
@@ -27,11 +31,13 @@ export function AchievementsDisplay() {
     }
   });
 
-  const earnedAchievements = achievementsData?.achievements || [];
-  const availableAchievements = achievementsData?.availableAchievements || [];
+  if (isLoading) {
+    return <div className="text-center text-muted-foreground">Loading achievements...</div>;
+  }
 
-  const renderAchievement = (achievement: Achievement & { earnedAt?: string }, earned: boolean) => {
-    const Icon = iconMap[achievement.icon] || Award;
+  const renderAchievement = (achievement: AchievementWithEarnedDate, earned: boolean) => {
+    const Icon = iconMap[achievement.icon as keyof typeof iconMap] || Award;
+
     return (
       <Card 
         key={achievement.id} 
@@ -79,15 +85,19 @@ export function AchievementsDisplay() {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {Array.isArray(earnedAchievements) && earnedAchievements.map(achievement => renderAchievement(achievement, true))}
-      </div>
+      {/* Earned Achievements */}
+      {data?.achievements && data.achievements.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {data.achievements.map(achievement => renderAchievement(achievement, true))}
+        </div>
+      )}
 
-      {Array.isArray(availableAchievements) && availableAchievements.length > 0 && (
+      {/* Available Achievements */}
+      {data?.availableAchievements && data.availableAchievements.length > 0 && (
         <>
           <h3 className="text-lg font-semibold text-foreground">Available Achievements</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {availableAchievements.map(achievement => renderAchievement(achievement, false))}
+            {data.availableAchievements.map(achievement => renderAchievement(achievement, false))}
           </div>
         </>
       )}

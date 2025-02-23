@@ -1,9 +1,9 @@
 import { db } from "./db";
 import { achievements, userAchievements, counts, type Achievement } from "@shared/schema";
-import { eq, sql, and, notInArray } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { Award, Target, Crown, Star, Bird } from "lucide-react";
 
-// Define initial achievements (unchanged)
+// Initial achievements remain unchanged
 export const INITIAL_ACHIEVEMENTS = [
   {
     name: "Novice Counter",
@@ -211,41 +211,32 @@ export class AchievementService {
   async getUserAchievements(userId: number) {
     console.log(`Getting achievements for user ${userId}`);
     try {
-      // Get all achievements first
+      // Get all achievements
       const allAchievements = await db.select().from(achievements);
-      console.log(`Found ${allAchievements.length} total achievements`);
 
       // Get user's earned achievements
-      const userAchieved = await db
-        .select({
-          achievementId: userAchievements.achievementId,
-          earnedAt: userAchievements.earnedAt
-        })
+      const earnedAchievementIds = await db
+        .select({ id: userAchievements.achievementId, earnedAt: userAchievements.earnedAt })
         .from(userAchievements)
         .where(eq(userAchievements.userId, userId));
 
-      console.log(`User has earned ${userAchieved.length} achievements`);
+      // Create a map of earned achievements
+      const earnedMap = new Map(earnedAchievementIds.map(({ id, earnedAt }) => [id, earnedAt]));
 
-      // Create a set of earned achievement IDs for quick lookup
-      const earnedIds = new Set(userAchieved.map(ua => ua.achievementId));
-
-      // Separate achievements into earned and available
+      // Split achievements into earned and available
       const earned = [];
       const available = [];
 
       for (const achievement of allAchievements) {
-        if (earnedIds.has(achievement.id)) {
-          const userAchievement = userAchieved.find(ua => ua.achievementId === achievement.id);
-          earned.push({
-            ...achievement,
-            earnedAt: userAchievement?.earnedAt
-          });
+        const earnedAt = earnedMap.get(achievement.id);
+        if (earnedAt) {
+          earned.push({ ...achievement, earnedAt });
         } else {
           available.push(achievement);
         }
       }
 
-      console.log(`Returning ${earned.length} earned and ${available.length} available achievements`);
+      console.log(`Found ${earned.length} earned and ${available.length} available achievements`);
 
       return {
         achievements: earned,
