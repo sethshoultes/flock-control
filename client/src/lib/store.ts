@@ -18,82 +18,89 @@ interface AppState {
   importCounts: (counts: Count[]) => void;
   updateCount: (id: string | number, updates: Partial<Count>) => void;
   deleteCounts: (ids: (string | number)[]) => void;
-
-  // Tutorial actions
   completeTutorial: () => void;
   resetTutorial: () => void;
   initializeTutorial: () => void;
 }
 
 const TUTORIAL_KEY = 'chicken-counter-tutorial-shown';
-const STORAGE_KEY = 'chicken-counter-storage';
-
-// Separate non-persisted actions
-const createActions = (set: any) => ({
-  addCount: (count: Count) => {
-    set((state: AppState) => ({
-      counts: [count, ...state.counts]
-    }));
-  },
-
-  clearCounts: () => {
-    set({ counts: [] });
-  },
-
-  importCounts: (counts: Count[]) => {
-    set({ counts });
-  },
-
-  updateCount: (id: string | number, updates: Partial<Count>) => {
-    set((state: AppState) => ({
-      counts: state.counts.map(count =>
-        count.id.toString() === id.toString() ? { ...count, ...updates } : count
-      )
-    }));
-  },
-
-  deleteCounts: (ids: (string | number)[]) => {
-    set((state: AppState) => ({
-      counts: state.counts.filter(count => !ids.includes(count.id))
-    }));
-  },
-
-  completeTutorial: () => {
-    set({ showTutorial: false });
-    localStorage.setItem(TUTORIAL_KEY, 'true');
-  },
-
-  resetTutorial: () => {
-    set({ showTutorial: true });
-    localStorage.setItem(TUTORIAL_KEY, 'false');
-  },
-
-  initializeTutorial: () => {
-    const hasSeenTutorial = localStorage.getItem(TUTORIAL_KEY) === 'true';
-    set({ 
-      showTutorial: !hasSeenTutorial,
-      tutorialLoading: false 
-    });
-  }
-});
 
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      // Initial state (persisted)
+      // Initial state
       counts: [],
       showTutorial: true,
       tutorialLoading: true,
 
-      // Actions (not persisted)
-      ...createActions(set)
+      // Actions
+      addCount: (count: Count) => {
+        set((state: AppState) => ({
+          counts: [count, ...state.counts]
+        }));
+      },
+
+      clearCounts: () => {
+        set({ counts: [] });
+      },
+
+      importCounts: (counts: Count[]) => {
+        set({ counts });
+      },
+
+      updateCount: (id: string | number, updates: Partial<Count>) => {
+        set((state: AppState) => ({
+          counts: state.counts.map(count =>
+            count.id.toString() === id.toString() ? { ...count, ...updates } : count
+          )
+        }));
+      },
+
+      deleteCounts: (ids: (string | number)[]) => {
+        set((state: AppState) => ({
+          counts: state.counts.filter(count => !ids.includes(count.id))
+        }));
+      },
+
+      completeTutorial: () => {
+        set({ showTutorial: false });
+        try {
+          localStorage.setItem(TUTORIAL_KEY, 'true');
+        } catch (error) {
+          console.error('Failed to save tutorial state:', error);
+        }
+      },
+
+      resetTutorial: () => {
+        set({ showTutorial: true });
+        try {
+          localStorage.setItem(TUTORIAL_KEY, 'false');
+        } catch (error) {
+          console.error('Failed to reset tutorial state:', error);
+        }
+      },
+
+      initializeTutorial: () => {
+        try {
+          const hasSeenTutorial = localStorage.getItem(TUTORIAL_KEY) === 'true';
+          set({ 
+            showTutorial: !hasSeenTutorial,
+            tutorialLoading: false 
+          });
+        } catch (error) {
+          console.error('Failed to initialize tutorial state:', error);
+          set({ 
+            showTutorial: true,
+            tutorialLoading: false 
+          });
+        }
+      }
     }),
     {
-      name: STORAGE_KEY,
+      name: 'chicken-counter-storage',
       partialize: (state) => ({
         counts: state.counts,
-        showTutorial: state.showTutorial,
-        tutorialLoading: state.tutorialLoading
+        showTutorial: state.showTutorial
       }),
       storage: {
         getItem: async (name) => {
