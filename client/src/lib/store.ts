@@ -33,12 +33,18 @@ export const useAppStore = create<AppState>()(
       // Actions
       addCount: (count: Count) => {
         set((state: AppState) => {
-          // Only update local storage for guest users (userId = 0)
+          // Only store guest mode counts (userId === 0)
           if (count.userId === 0) {
+            // Ensure we don't duplicate counts
+            const existingIndex = state.counts.findIndex(c => c.id === count.id);
+            if (existingIndex >= 0) {
+              const newCounts = [...state.counts];
+              newCounts[existingIndex] = count;
+              return { counts: newCounts };
+            }
             return { counts: [count, ...state.counts] };
           }
-          // For authenticated users, let TanStack Query handle the cache
-          return state;
+          return state; // No change for authenticated users
         });
       },
 
@@ -47,16 +53,16 @@ export const useAppStore = create<AppState>()(
       },
 
       importCounts: (counts: Count[]) => {
-        // Only store counts locally for guest users
+        // Only import guest mode counts
         const guestCounts = counts.filter(count => count.userId === 0);
         set({ counts: guestCounts });
       },
 
       updateCount: (id: string | number, updates: Partial<Count>) => {
         set((state: AppState) => {
-          // Only update local storage for guest counts
+          // Only update guest mode counts
           const count = state.counts.find(c => c.id.toString() === id.toString());
-          if (count && count.userId === 0) {
+          if (count?.userId === 0) {
             return {
               counts: state.counts.map(c =>
                 c.id.toString() === id.toString() ? { ...c, ...updates } : c
@@ -69,7 +75,7 @@ export const useAppStore = create<AppState>()(
 
       deleteCounts: (ids: (string | number)[]) => {
         set((state: AppState) => {
-          // Only delete from local storage for guest counts
+          // Only delete guest mode counts
           return {
             counts: state.counts.filter(count => 
               count.userId !== 0 || !ids.includes(count.id)
@@ -123,7 +129,18 @@ export const useAppStore = create<AppState>()(
           try {
             const value = await get(name);
             console.log('Retrieved store data:', { name, found: !!value });
-            return value;
+            if (!value) return null;
+
+            // Validate stored data
+            const parsed = JSON.parse(JSON.stringify(value)); // Deep clone to avoid mutations
+            if (parsed && typeof parsed === 'object') {
+              if (Array.isArray(parsed.counts)) {
+                // Ensure only guest counts are loaded
+                parsed.counts = parsed.counts.filter((c: any) => c && c.userId === 0);
+              }
+              return parsed;
+            }
+            return null;
           } catch (error) {
             console.error('Failed to load from IndexedDB:', error);
             return null;
@@ -131,6 +148,10 @@ export const useAppStore = create<AppState>()(
         },
         setItem: async (name, value) => {
           try {
+            // Only save guest counts
+            if (value && typeof value === 'object' && Array.isArray(value.counts)) {
+              value.counts = value.counts.filter(count => count.userId === 0);
+            }
             await set(name, value);
             console.log('Saved store data:', { name });
           } catch (error) {

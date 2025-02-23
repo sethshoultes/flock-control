@@ -139,6 +139,9 @@ export default function Home() {
     return null;
   }
 
+  // Get counts based on authentication status
+  const counts = user ? countsData?.counts || [] : store.counts;
+
   return (
     <div className="container max-w-2xl mx-auto p-4 space-y-8">
       {store.showTutorial && (
@@ -178,12 +181,12 @@ export default function Home() {
           <CardTitle>History</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoadingCounts ? (
+          {user && isLoadingCounts ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <CountHistory counts={countsData?.counts || []} />
+            <CountHistory counts={counts} />
           )}
         </CardContent>
       </Card>
